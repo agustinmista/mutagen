@@ -29,3 +29,5 @@ cabal.project.local~
 *.pdf
 *.synctex.gz
 .tracer
+result
+result-*
