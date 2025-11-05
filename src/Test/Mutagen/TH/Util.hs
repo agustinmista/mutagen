@@ -21,7 +21,7 @@ reifyName name = do
     Just info -> return info
     Nothing -> mutagenError "could not reify name" [name]
 
-reifyTypeDef :: Name -> Q ([DTyVarBndrUnit], [DCon])
+reifyTypeDef :: Name -> Q ([DTyVarBndrVis], [DCon])
 reifyTypeDef name = do
   dinfo <- reifyName name
   case dinfo of
@@ -79,22 +79,22 @@ isListOf _                               = Nothing
 -- | Is this type a Maybe thing?
 isMaybeOf :: DType -> Maybe DType
 isMaybeOf (DConT f `DAppT` a) | f == ''Maybe = Just a
-isMaybeOf _                                  = Nothing
+isMaybeOf _ = Nothing
 
 ----------------------------------------
--- | Observations over TyVarBndrs
 
-dTyVarBndrName :: DTyVarBndrUnit -> Name
-dTyVarBndrName (DPlainTV tv _)    = tv
+-- | Observations over TyVarBndrs
+dTyVarBndrName :: DTyVarBndrVis -> Name
+dTyVarBndrName (DPlainTV tv _) = tv
 dTyVarBndrName (DKindedTV tv _ _) = tv
 
-dTyVarBndrToDTypeArg :: DTyVarBndrUnit -> DTypeArg
-dTyVarBndrToDTypeArg (DPlainTV tv _)    = DTANormal (DVarT tv)
+dTyVarBndrToDTypeArg :: DTyVarBndrVis -> DTypeArg
+dTyVarBndrToDTypeArg (DPlainTV tv _) = DTANormal (DVarT tv)
 dTyVarBndrToDTypeArg (DKindedTV tv _ _) = DTANormal (DVarT tv)
 
 ----------------------------------------
--- | Observations over DCons
 
+-- | Observations over DCons
 dConName :: DCon -> Name
 dConName (DCon _ _ name _ _) = name
 
@@ -103,13 +103,14 @@ dConFields (DCon _ _ _ conFields _) = conFields
 
 dConFieldsTypes :: DConFields -> [DType]
 dConFieldsTypes (DNormalC _ bts) = map snd bts
-dConFieldsTypes (DRecC bts)      = map (\(_,_,t) -> t) bts
+dConFieldsTypes (DRecC bts) = map (\(_, _, t) -> t) bts
 
 dConFieldsNum :: DConFields -> Int
 dConFieldsNum (DNormalC _ bts) = length bts
-dConFieldsNum (DRecC bts)      = length bts
+dConFieldsNum (DRecC bts) = length bts
 
 ----------------------------------------
+
 -- | Pure builders
 
 -- | Apply a list of types to a head type constructor
@@ -117,7 +118,7 @@ applyDTypes :: Name -> [DTypeArg] -> DType
 applyDTypes name args = DConT name `applyDType` args
 
 -- | Apply a list of type vars to a head constructor
-applyTVs :: Name -> [DTyVarBndrUnit] -> DType
+applyTVs :: Name -> [DTyVarBndrVis] -> DType
 applyTVs tn vs = applyDTypes tn (fmap dTyVarBndrToDTypeArg vs)
 
 -- | Apply a constructor name to a list of field expressions
@@ -127,25 +128,29 @@ mkConDExp name = foldl DAppE (DConE name)
 -- | Build an applicative expression by chaining `<*>`
 mkApplicativeDExp :: Name -> [DExp] -> DExp
 mkApplicativeDExp headName = foldl appExp pureExp
-  where pureExp = DVarE 'pure `DAppE` DConE headName
-        appExp l r = DVarE '(<*>) `DAppE` l `DAppE` r
+  where
+    pureExp = DVarE 'pure `DAppE` DConE headName
+    appExp l r = DVarE '(<*>) `DAppE` l `DAppE` r
 
 -- | Build a list expression by chaining `(:)`
 mkListDExp :: [DExp] -> DExp
 mkListDExp = foldr consExp nilExp
-  where nilExp = DConE '[]
-        consExp l r = DConE '(:) `DAppE` l `DAppE` r
+  where
+    nilExp = DConE '[]
+    consExp l r = DConE '(:) `DAppE` l `DAppE` r
 
 ----------------------------------------
+
 -- | Impure builders
 
--- | Create a pattern from a constructor using fresh variable names.
--- Returns the patterns as well as the bound variables.
+{- | Create a pattern from a constructor using fresh variable names.
+Returns the patterns as well as the bound variables.
+-}
 createDPat :: DCon -> Q ([Name], DPat)
 createDPat (DCon _ _ cname cfields _) = do
-  pvs <- replicateM (dConFieldsNum cfields) (newName "_v")
-  let dpat = DConP cname [] [DVarP pv | pv <- pvs]
-  return (pvs, dpat)
+    pvs <- replicateM (dConFieldsNum cfields) (newName "_v")
+    let dpat = DConP cname [] [DVarP pv | pv <- pvs]
+    return (pvs, dpat)
 
 ----------------------------------------
 -- | Error and warning messages
@@ -182,7 +187,6 @@ mutagenError msg inputs = runIO $ do
   error "MUTAGEN derivation error"
 
 ----------------------------------------
--- | Some extra niceties
 
 ifM :: Monad m => m Bool -> m b -> m b -> m b
 ifM mb th el = do
