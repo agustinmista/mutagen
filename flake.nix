@@ -24,8 +24,8 @@
         supportedGHCs = [
           "ghc96"
           "ghc98"
-          # "ghc910" # has some TH issues
-          # "ghc912" # has some TH issues
+          "ghc910" # has some TH issues
+          "ghc912" # has some TH issues
         ];
 
         hsPkgsFor =

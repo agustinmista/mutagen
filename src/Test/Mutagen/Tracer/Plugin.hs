@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE PatternSynonyms #-}
 
@@ -200,13 +201,21 @@ mkRdrName str = mkUnqual Name.varName (mkFastString str)
 var :: RdrName -> LHsExpr GhcPs
 var v = noLocA (HsVar noExtField (noLocA v))
 
+paren :: LHsExpr GhcPs -> LHsExpr GhcPs
+paren x = noLocA (gHsPar x)
+
 app :: LHsExpr GhcPs -> LHsExpr GhcPs -> LHsExpr GhcPs
+#if MIN_VERSION_ghc(9,10,1)
+app x y = noLocA (HsApp noExtField x y)
+#else
 app x y = noLocA (HsApp noComments x y)
+#endif
 
 infixl 5 `app`
 
-paren :: LHsExpr GhcPs -> LHsExpr GhcPs
-paren e = noLocA (HsPar noComments (L NoTokenLoc HsTok) e (L NoTokenLoc HsTok))
-
 numLit :: Int -> LHsExpr GhcPs
+#if MIN_VERSION_ghc(9,10,1)
+numLit n = noLocA (HsLit noExtField (HsInt noExtField (mkIntegralLit n)))
+#else
 numLit n = noLocA (HsLit noComments (HsInt noExtField (mkIntegralLit n)))
+#endif
