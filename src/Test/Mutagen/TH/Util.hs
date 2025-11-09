@@ -1,16 +1,16 @@
-{-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
+
 module Test.Mutagen.TH.Util where
 
 import Control.Monad
 import Control.Monad.IO.Class
-
-import System.Console.ANSI
-
 import Language.Haskell.TH
 import Language.Haskell.TH.Desugar
+import System.Console.ANSI
 
 ----------------------------------------
+
 -- | Reification utilities
 
 -- | Reify a name or die gracefully
@@ -29,14 +29,15 @@ reifyTypeDef name = do
     _ -> mutagenError ("unexpected result when reifying " <> dump name) [dinfo]
 
 ----------------------------------------
+
 -- | Observations over DTypes
 
 -- | Simplify a DType removing foralls and signatures
 simplifyDType :: DType -> DType
-simplifyDType (DForallT _ t)   = simplifyDType t
-simplifyDType (DSigT t _)      = simplifyDType t
-simplifyDType (DAppT l r)      = DAppT (simplifyDType l) (simplifyDType r)
-simplifyDType t                = t
+simplifyDType (DForallT _ t) = simplifyDType t
+simplifyDType (DSigT t _) = simplifyDType t
+simplifyDType (DAppT l r) = DAppT (simplifyDType l) (simplifyDType r)
+simplifyDType t = t
 
 -- | Compare DTypes for equality
 (.==.) :: DType -> DType -> Bool
@@ -45,9 +46,9 @@ t1 .==. t2 = simplifyDType t1 == simplifyDType t2
 -- | Split a function type into its parameters and return type
 splitSignature :: DType -> [DType]
 splitSignature (DArrowT `DAppT` l `DAppT` r) = l : splitSignature r
-splitSignature (DForallT _ t)                = splitSignature t
-splitSignature (DSigT t _)                   = splitSignature t
-splitSignature t                             = [t]
+splitSignature (DForallT _ t) = splitSignature t
+splitSignature (DSigT t _) = splitSignature t
+splitSignature t = [t]
 
 returnType :: DType -> DType
 returnType = last . splitSignature
@@ -62,7 +63,8 @@ unapply (DVarT name) = (name, [])
 unapply (DForallT _ t) = unapply t
 unapply (DSigT t _) = unapply t
 unapply (DAppT l r) = (name, l' ++ [r])
-  where (name, l') = unapply l
+  where
+    (name, l') = unapply l
 unapply t = unsupported 'unapply t
 
 typeHead :: DType -> Name
@@ -74,7 +76,7 @@ typeArgs = snd . unapply
 -- | Is this type a list of things?
 isListOf :: DType -> Maybe DType
 isListOf (DConT f `DAppT` a) | f == ''[] = Just a
-isListOf _                               = Nothing
+isListOf _ = Nothing
 
 -- | Is this type a Maybe thing?
 isMaybeOf :: DType -> Maybe DType
@@ -143,24 +145,24 @@ mkListDExp = foldr consExp nilExp
 
 -- | Impure builders
 
-{- | Create a pattern from a constructor using fresh variable names.
-Returns the patterns as well as the bound variables.
--}
+-- | Create a pattern from a constructor using fresh variable names.
+-- Returns the patterns as well as the bound variables.
 createDPat :: DCon -> Q ([Name], DPat)
 createDPat (DCon _ _ cname cfields _) = do
-    pvs <- replicateM (dConFieldsNum cfields) (newName "_v")
-    let dpat = DConP cname [] [DVarP pv | pv <- pvs]
-    return (pvs, dpat)
+  pvs <- replicateM (dConFieldsNum cfields) (newName "_v")
+  let dpat = DConP cname [] [DVarP pv | pv <- pvs]
+  return (pvs, dpat)
 
 ----------------------------------------
+
 -- | Error and warning messages
 
 -- | Internal errors
-unsupported :: Show a => Name -> a -> b
+unsupported :: (Show a) => Name -> a -> b
 unsupported funName input =
   error $ "[MUTAGEN]" ++ show funName ++ ": unsupported input:\n" ++ show input
 
-dump :: Ppr a => a -> String
+dump :: (Ppr a) => a -> String
 dump = pprint
 
 withColor :: Color -> IO () -> IO ()
@@ -169,13 +171,13 @@ withColor color io = do
   io
   setSGR [Reset]
 
-mutagenLog :: MonadIO m => String -> m ()
+mutagenLog :: (MonadIO m) => String -> m ()
 mutagenLog str = liftIO $ putStrLn $ "[MUTAGEN] " ++ str
 
-mutagenLog' :: MonadIO m => String -> m ()
+mutagenLog' :: (MonadIO m) => String -> m ()
 mutagenLog' str = liftIO $ putStrLn str
 
-mutagenError :: Show a => String -> [a] -> Q b
+mutagenError :: (Show a) => String -> [a] -> Q b
 mutagenError msg inputs = runIO $ do
   withColor Red $ do
     mutagenLog "an error happened:"
@@ -188,11 +190,11 @@ mutagenError msg inputs = runIO $ do
 
 ----------------------------------------
 
-ifM :: Monad m => m Bool -> m b -> m b -> m b
+ifM :: (Monad m) => m Bool -> m b -> m b -> m b
 ifM mb th el = do
   b <- mb
   if b then th else el
 
 -- replace :: Int -> [a] -> a -> [a]
 replace :: Int -> [a] -> a -> [a]
-replace n xs x = take n xs <> [x] <> drop (n+1) xs
+replace n xs x = take n xs <> [x] <> drop (n + 1) xs

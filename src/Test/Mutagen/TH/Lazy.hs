@@ -1,11 +1,10 @@
 {-# LANGUAGE TemplateHaskellQuotes #-}
+
 module Test.Mutagen.TH.Lazy where
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Desugar
-
-import Test.Mutagen (Lazy, __evaluated__, lazyNode)
-
+import Test.Mutagen (Lazy, lazyNode, __evaluated__)
 import Test.Mutagen.TH.Util
 
 ----------------------------------------
@@ -24,22 +23,26 @@ deriveLazy name ignored = do
   insClauses <- mapM deriveLazyNode wantedcons
   -- Build the Mutable instance
   let insTy = DConT ''Lazy `DAppT` dty
-  let insCxt = [ DConT ''Lazy `DAppT` DVarT (dTyVarBndrName tvb)
-               | tvb <- dtvbs ]
-  let insBody = [ DLetDec (DFunD 'lazyNode insClauses) ]
-  return [ DInstanceD Nothing Nothing insCxt insTy insBody ]
-
+  let insCxt =
+        [ DConT ''Lazy `DAppT` DVarT (dTyVarBndrName tvb)
+        | tvb <- dtvbs
+        ]
+  let insBody = [DLetDec (DFunD 'lazyNode insClauses)]
+  return [DInstanceD Nothing Nothing insCxt insTy insBody]
 
 deriveLazyNode :: DCon -> Q DClause
 deriveLazyNode con = do
   acc <- newName "acc"
   (pvs, dpat) <- createDPat con
 
-  let lazyFieldExps = [ DVarE 'lazyNode `DAppE`
-                        (DConE '(:) `DAppE` DLitE (IntegerL idx) `DAppE` DVarE acc) `DAppE`
-                        DVarE pv
-                      | (idx, pv) <- zip [0..] pvs ]
-  let clauseBody = DVarE '__evaluated__ `DAppE`
-                   DVarE acc `DAppE`
-                   mkConDExp (dConName con) lazyFieldExps
+  let lazyFieldExps =
+        [ DVarE 'lazyNode
+            `DAppE` (DConE '(:) `DAppE` DLitE (IntegerL idx) `DAppE` DVarE acc)
+            `DAppE` DVarE pv
+        | (idx, pv) <- zip [0 ..] pvs
+        ]
+  let clauseBody =
+        DVarE '__evaluated__
+          `DAppE` DVarE acc
+          `DAppE` mkConDExp (dConName con) lazyFieldExps
   return (DClause [DVarP acc, dpat] clauseBody)

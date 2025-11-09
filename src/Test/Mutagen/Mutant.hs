@@ -1,18 +1,15 @@
 module Test.Mutagen.Mutant where
 
 import Control.Monad
-
 import Data.Typeable
-
+import Test.Mutagen.Fragment
 import Test.QuickCheck
 
-import Test.Mutagen.Fragment
-
 ----------------------------------------
--- | Mutants
 
-data Mutant a =
-    Pure a
+-- | Mutants
+data Mutant a
+  = Pure a
   | Rand (Gen a)
   | Frag (FragmentStore -> Gen [a])
 
@@ -27,15 +24,15 @@ instance Functor Mutant where
   fmap f (Frag fun) = Frag (fmap (fmap (fmap f)) fun)
 
 data MutantKind = PureMutant | RandMutant | FragMutant
-  deriving Show
+  deriving (Show)
 
 data Concretized a = Concretized MutantKind a
-  deriving Show
+  deriving (Show)
 
-concretize :: Typeable a => (Int, Int) -> (Int, FragmentStore) -> Mutant a -> IO [Concretized a]
+concretize :: (Typeable a) => (Int, Int) -> (Int, FragmentStore) -> Mutant a -> IO [Concretized a]
 concretize _ _ (Pure mut) = do
   fmap (Concretized PureMutant) <$> return [mut]
 concretize (n, s) _ (Rand gen) = do
-  fmap (Concretized RandMutant) <$> replicateM n  (generate (resize s gen))
+  fmap (Concretized RandMutant) <$> replicateM n (generate (resize s gen))
 concretize _ (n, fs) (Frag fun) = do
   fmap (Concretized FragMutant) <$> fmap (take n) (generate (fun fs))

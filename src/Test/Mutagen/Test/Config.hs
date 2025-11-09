@@ -1,18 +1,17 @@
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Test.Mutagen.Test.Config where
 
 import Data.Typeable
-
 import Test.Mutagen.Mutation
 import Test.Mutagen.Property
 
 ----------------------------------------
--- | Testing options (available to the user)
 
+-- | Testing options (available to the user)
 data TraceMethod = Tree | Bitmap
 
 data Config
@@ -25,17 +24,15 @@ data Config
   -- ^ Max discard ratio
   , timeout :: Maybe Integer
   -- ^ Campaign time budget in seconds (has precedence over maxSuccess)
-
-  ----------------------------------------
-  -- Generation options
-  , maxGenSize :: Int
+  , ----------------------------------------
+    -- Generation options
+    maxGenSize :: Int
   -- ^ Max generation size passed to a generator. It uses the same formula for
   -- computing sizes as vanilla QuickCheck when in generation mode. Random
   -- mutations are generated using the maximum size.
-
-  ----------------------------------------
-  -- Mutation options
-  , randomMutations :: Int
+  , ----------------------------------------
+    -- Mutation options
+    randomMutations :: Int
   -- ^ The amount of times to sample the generator associated to a random
   -- mutant. It can be automatically increased over time if `autoResetAfter` is not
   -- set to `Nothing`.
@@ -71,20 +68,18 @@ data Config
   , examples :: [Args]
   -- ^ Initial inputs examples used to populate the global fragment store before
   -- the testing loop starts.
-
-  ----------------------------------------
-  -- Tracing options
-  , traceMethod :: TraceMethod
+  , ----------------------------------------
+    -- Tracing options
+    traceMethod :: TraceMethod
   -- ^ The tracing log mechanism. Either `Tree` or `Bitmap`. `Tree` uses
   -- prefix-based traces (quite expensive but more precise). `Bitmap` uses
   -- edge-based traces (cheaper but less precise).
   , maxTraceLength :: Maybe Int
   -- ^ The maximim trace length to consider. Useful in conjunction with the
   -- `Tree` `traceMethod` when testing lengthy properties.
-
-  ----------------------------------------
-  -- Debug options
-  , chatty :: Bool
+  , ----------------------------------------
+    -- Debug options
+    chatty :: Bool
   -- ^ Print extra info
   , debug :: Bool
   -- ^ Stop after every step and wait for the user to press Enter.
@@ -93,28 +88,27 @@ data Config
 defaultConfig :: Config
 defaultConfig =
   Config
-  { maxSuccess      = 1000000
-  , maxDiscardRatio = 1000
-  , timeout         = Nothing
-  , maxGenSize      = 10
-  , randomMutations = 1
-  , mutationLimit   = Nothing
-  , autoResetAfter  = Just 1000
-  , useLazyPrunning = False
-  , mutationOrder   = levelorder
-  , useFragments    = False
-  , randomFragments = 10
-  , filterFragments = Nothing
-  , examples        = []
-  , traceMethod     = Bitmap
-  , maxTraceLength  = Nothing
-  , chatty          = False
-  , debug           = False
-  }
+    { maxSuccess = 1000000
+    , maxDiscardRatio = 1000
+    , timeout = Nothing
+    , maxGenSize = 10
+    , randomMutations = 1
+    , mutationLimit = Nothing
+    , autoResetAfter = Just 1000
+    , useLazyPrunning = False
+    , mutationOrder = levelorder
+    , useFragments = False
+    , randomFragments = 10
+    , filterFragments = Nothing
+    , examples = []
+    , traceMethod = Bitmap
+    , maxTraceLength = Nothing
+    , chatty = False
+    , debug = False
+    }
 
-
-allow :: forall a. Typeable a => TypeRep
+allow :: forall a. (Typeable a) => TypeRep
 allow = typeRep (Proxy @a)
 
-example :: forall a. IsArgs a => a -> Args
+example :: forall a. (IsArgs a) => a -> Args
 example = Args

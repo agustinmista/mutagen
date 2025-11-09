@@ -4,24 +4,19 @@ module Test.Mutagen.Test.Loop where
 
 import Control.Monad
 import Control.Monad.Extra (ifM)
-
 import Data.Maybe
-
 import qualified Data.PQueue.Prio.Min as PQueue
-
 import System.Random (split)
-
-import Test.QuickCheck.Gen (unGen)
-
-import Test.Mutagen.Tracer
-import Test.Mutagen.Property
+import Test.Mutagen.Fragment
 import Test.Mutagen.Lazy
 import Test.Mutagen.Mutation
-import Test.Mutagen.Fragment
-import Test.Mutagen.Test.State
+import Test.Mutagen.Property
 import Test.Mutagen.Test.Batch
 import Test.Mutagen.Test.Report
+import Test.Mutagen.Test.State
 import Test.Mutagen.Test.Terminal
+import Test.Mutagen.Tracer
+import Test.QuickCheck.Gen (unGen)
 
 ----------------------------------------
 -- The main test loop
@@ -29,7 +24,7 @@ import Test.Mutagen.Test.Terminal
 -- We abstract the test case runner based on the way it logs execution traces
 type TestCaseRunner log = State log -> Maybe (MutationBatch Args) -> Args -> IO (Either Test (State log))
 
-loop :: TraceLogger log => TestCaseRunner log -> State log -> IO Report
+loop :: (TraceLogger log) => TestCaseRunner log -> State log -> IO Report
 loop runner st
   -- We reached the max number of tests
   | stNumPassed st >= stMaxSuccess st =
@@ -39,56 +34,62 @@ loop runner st
       giveUp st "too many discarded tests"
   -- The time bugdet is over, we check this every so often
   | (stNumPassed st + stNumDiscarded st) `mod` 100 == 0 =
-      ifM (passedTimeout st)
-          (giveUp st "timeout")
-          (newTest runner st)
+      ifM
+        (passedTimeout st)
+        (giveUp st "timeout")
+        (newTest runner st)
   -- Reset the trace log if we havent enqueued anything interesting in a while
   -- additionally, increase the number of random mutations
-  | maybe False (stNumTestsSinceLastInteresting st >=) (stAutoResetAfter st) &&
-    null (stPassedQueue st) &&
-    null (stDiscardedQueue st) = do
+  | maybe False (stNumTestsSinceLastInteresting st >=) (stAutoResetAfter st)
+      && null (stPassedQueue st)
+      && null (stDiscardedQueue st) = do
       resetTraceLog (stPassedTraceLog st)
       resetTraceLog (stDiscardedTraceLog st)
-      let st' = st ! setAutoResetAfter (maybe (stAutoResetAfter st) (Just . (*2)) (stAutoResetAfter st))
-                   ! setRandomMutations (stRandomMutations st * 2)
-                   ! increaseNumTraceLogResets
-                   ! resetNumTestsSinceLastInteresting
+      let st' =
+            st
+              ! setAutoResetAfter (maybe (stAutoResetAfter st) (Just . (* 2)) (stAutoResetAfter st))
+              ! setRandomMutations (stRandomMutations st * 2)
+              ! increaseNumTraceLogResets
+              ! resetNumTestsSinceLastInteresting
       newTest runner st'
   -- Nothing new under the sun, continue testing
   | otherwise =
       newTest runner st
 
 -- Testing is no more
-doneTesting :: TraceLogger log => State log -> IO Report
+doneTesting :: (TraceLogger log) => State log -> IO Report
 doneTesting st = do
   reportDoneTesting st
-  return AllPassed
-    { numPassed = stNumPassed st
-    , numDiscarded = stNumDiscarded st
-    }
+  return
+    AllPassed
+      { numPassed = stNumPassed st
+      , numDiscarded = stNumDiscarded st
+      }
 
 -- Too many discarded tests
-giveUp :: TraceLogger log => State log -> String -> IO Report
+giveUp :: (TraceLogger log) => State log -> String -> IO Report
 giveUp st r = do
   reportGaveUp st r
-  return GaveUp
-    { why = r
-    , numPassed = stNumPassed st
-    , numDiscarded = stNumDiscarded st
-    }
+  return
+    GaveUp
+      { why = r
+      , numPassed = stNumPassed st
+      , numDiscarded = stNumDiscarded st
+      }
 
 -- Found a bug!
-counterexample :: TraceLogger log => State log -> Args -> Test -> IO Report
+counterexample :: (TraceLogger log) => State log -> Args -> Test -> IO Report
 counterexample st as test = do
   reportCounterexample st as test
-  return Counterexample
-    { numPassed = stNumPassed st
-    , numDiscarded = stNumDiscarded st
-    , failingArgs = as
-    }
+  return
+    Counterexample
+      { numPassed = stNumPassed st
+      , numDiscarded = stNumDiscarded st
+      , failingArgs = as
+      }
 
 -- Generate and run a new test
-newTest :: TraceLogger log => TestCaseRunner log -> State log -> IO Report
+newTest :: (TraceLogger log) => TestCaseRunner log -> State log -> IO Report
 newTest runner st = do
   -- print global stats
   when (stChatty st) $ do
@@ -151,8 +152,9 @@ runTestCase_generic register st parent args = do
       when (stChatty st && interesting) $ do
         printTestCaseWasInteresting new prio
       -- Update the internal state for the next iteration
-      let st' | interesting = updateStateAfterInterestingPassed st args parent tr eval_pos prio
-              | otherwise   = updateStateAfterBoringPassed st
+      let st'
+            | interesting = updateStateAfterInterestingPassed st args parent tr eval_pos prio
+            | otherwise = updateStateAfterBoringPassed st
       return (Right st')
     -- Test discarded, lotta work to do here too
     Discarded -> do
@@ -165,8 +167,9 @@ runTestCase_generic register st parent args = do
       when (stChatty st && interesting) $ do
         printTestCaseWasInteresting new prio
       -- Update the internal state for the next iteration
-      let st' | interesting = updateStateAfterInterestingDiscarded st args parent tr eval_pos prio
-              | otherwise   = updateStateAfterBoringDiscarded st
+      let st'
+            | interesting = updateStateAfterInterestingDiscarded st args parent tr eval_pos prio
+            | otherwise = updateStateAfterBoringDiscarded st
       return (Right st')
 
 ----------------------------------------
@@ -195,36 +198,44 @@ execArgsRunner st args
 updateStateAfterInterestingPassed :: State log -> Args -> Maybe (MutationBatch Args) -> Trace -> Maybe [Pos] -> Int -> State log
 updateStateAfterInterestingPassed st args parent tr eval_pos prio =
   let mbatch = createOrInheritMutationBatch st args parent eval_pos True
-  in st ! increaseNumPassed
+   in st
+        ! increaseNumPassed
         ! increaseNumInteresting
         ! resetNumTestsSinceLastInteresting
         ! setPassedQueue (PQueue.insert prio (args, tr, mbatch) (stPassedQueue st))
-        ! setFragmentStore (if stUseFragments st
-                            then storeFragments (stFilterFragments st) args (stFragmentStore st)
-                            else stFragmentStore st)
+        ! setFragmentStore
+          ( if stUseFragments st
+              then storeFragments (stFilterFragments st) args (stFragmentStore st)
+              else stFragmentStore st
+          )
 
 updateStateAfterInterestingDiscarded :: State log -> Args -> Maybe (MutationBatch Args) -> Trace -> Maybe [Pos] -> Int -> State log
 updateStateAfterInterestingDiscarded st args parent tr eval_pos prio =
   let mbatch = createOrInheritMutationBatch st args parent eval_pos False
-  in st ! increaseNumDiscarded
+   in st
+        ! increaseNumDiscarded
         ! increaseNumInteresting
         ! resetNumTestsSinceLastInteresting
         ! setDiscardedQueue (PQueue.insert prio (args, tr, mbatch) (stDiscardedQueue st))
-        ! setFragmentStore (if stUseFragments st
-                            then storeFragments (stFilterFragments st) args (stFragmentStore st)
-                            else stFragmentStore st)
+        ! setFragmentStore
+          ( if stUseFragments st
+              then storeFragments (stFilterFragments st) args (stFragmentStore st)
+              else stFragmentStore st
+          )
 
 updateStateAfterBoringPassed :: State log -> State log
 updateStateAfterBoringPassed st =
-  st ! increaseNumPassed
-     ! increaseNumBoring
-     ! increaseNumTestsSinceLastInteresting
+  st
+    ! increaseNumPassed
+    ! increaseNumBoring
+    ! increaseNumTestsSinceLastInteresting
 
 updateStateAfterBoringDiscarded :: State log -> State log
 updateStateAfterBoringDiscarded st =
-  st ! increaseNumDiscarded
-     ! increaseNumBoring
-     ! increaseNumTestsSinceLastInteresting
+  st
+    ! increaseNumDiscarded
+    ! increaseNumBoring
+    ! increaseNumTestsSinceLastInteresting
 
 ----------------------------------------
 -- Selecting the next test case
@@ -232,7 +243,7 @@ updateStateAfterBoringDiscarded st =
 -- Select a new test, mutating and existing interesting one or generating a
 -- brand new otherwise.
 
-pickNextTestCase :: TraceLogger log => State log -> IO (Args, Maybe (MutationBatch Args), State log)
+pickNextTestCase :: (TraceLogger log) => State log -> IO (Args, Maybe (MutationBatch Args), State log)
 pickNextTestCase st
   -- We can run a mutation of an interesting succesful test case
   | not (null (stPassedQueue st)) = mutateFromPassed st
@@ -241,7 +252,7 @@ pickNextTestCase st
   -- Only choice left is to generate a brand new test
   | otherwise = generateNewTest st
 
-generateNewTest :: TraceLogger log => State log -> IO (Args, Maybe (MutationBatch Args), State log)
+generateNewTest :: (TraceLogger log) => State log -> IO (Args, Maybe (MutationBatch Args), State log)
 generateNewTest st = do
   -- First we compute an appropriate generation size
   let size = computeSize st
@@ -250,12 +261,14 @@ generateNewTest st = do
   let args = unGen (stArgsGen st) rnd1 size
   if stChatty st then printGeneratedTestCase args else printDot
   -- Put the new random seed in the state
-  let st' = st ! setNextSeed rnd2
-               ! setCurrentGenSize size
-               ! increaseNumGenerated
+  let st' =
+        st
+          ! setNextSeed rnd2
+          ! setCurrentGenSize size
+          ! increaseNumGenerated
   return (args, Nothing, st')
 
-mutateFromPassed :: TraceLogger log => State log -> IO (Args, Maybe (MutationBatch Args), State log)
+mutateFromPassed :: (TraceLogger log) => State log -> IO (Args, Maybe (MutationBatch Args), State log)
 mutateFromPassed st = do
   let ((prio, (args, tr, mbatch)), rest) = PQueue.deleteFindMin (stPassedQueue st)
   next <- nextMutation (stFragmentStore st) mbatch
@@ -269,12 +282,14 @@ mutateFromPassed st = do
         printBatchStatus mbatch
         printOriginalTestCaseTrace tr
       if stChatty st then printMutatedTestCase args' else printDot
-      let st' = st ! increaseMutantKindCounter mk'
-                   ! increaseNumMutatedFromPassed
-                   ! setPassedQueue (PQueue.insert prio (args, tr, mbatch') rest)
+      let st' =
+            st
+              ! increaseMutantKindCounter mk'
+              ! increaseNumMutatedFromPassed
+              ! setPassedQueue (PQueue.insert prio (args, tr, mbatch') rest)
       return (args', Just mbatch', st')
 
-mutateFromDiscarded :: TraceLogger log => State log -> IO (Args, Maybe (MutationBatch Args), State log)
+mutateFromDiscarded :: (TraceLogger log) => State log -> IO (Args, Maybe (MutationBatch Args), State log)
 mutateFromDiscarded st = do
   let ((prio, (args, tr, mbatch)), rest) = PQueue.deleteFindMin (stDiscardedQueue st)
   next <- nextMutation (stFragmentStore st) mbatch
@@ -288,7 +303,9 @@ mutateFromDiscarded st = do
         printBatchStatus mbatch
         printOriginalTestCaseTrace tr
       if stChatty st then printMutatedTestCase args' else printDot
-      let st' = st ! increaseMutantKindCounter mk'
-                   ! increaseNumMutatedFromDiscarded
-                   ! setDiscardedQueue (PQueue.insert prio (args, tr, mbatch') rest)
+      let st' =
+            st
+              ! increaseMutantKindCounter mk'
+              ! increaseNumMutatedFromDiscarded
+              ! setDiscardedQueue (PQueue.insert prio (args, tr, mbatch') rest)
       return (args', Just mbatch', st')

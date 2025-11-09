@@ -1,13 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
+
 module Test.Mutagen.TH.Arbitrary where
 
 import Data.List
-
 import Language.Haskell.TH
 import Language.Haskell.TH.Desugar
-
-import Test.Mutagen (Gen, Arbitrary, Arbitrary1, Arbitrary2, arbitrary, liftArbitrary, liftArbitrary2, sized, oneof)
-
+import Test.Mutagen (Arbitrary, Arbitrary1, Arbitrary2, Gen, arbitrary, liftArbitrary, liftArbitrary2, oneof, sized)
 import Test.Mutagen.TH.Util
 
 ----------------------------------------
@@ -32,20 +30,31 @@ deriveArbitrary name ignored = do
   termGens <- mapM (mkConGen dty gen size) terms
   -- Build the Arbitrary instance
   let insTy = DConT ''Arbitrary `DAppT` dty
-  let insCxt = [ DConT ''Arbitrary `DAppT` DVarT (dTyVarBndrName tvb)
-               | tvb <- dtvbs ]
-  let insGen = DLetE
-               [ DFunD gen
-                 [ DClause [ DVarP size ]
-                   (dCaseE (DVarE size)
-                    [ DMatch (DLitP (IntegerL 0))
-                      (DVarE 'oneof `DAppE` mkListDExp termGens)
-                    , DMatch DWildP
-                      (DVarE 'oneof `DAppE` mkListDExp (termGens <> recGens))
-                    ])]
-               ] (DVarE 'sized `DAppE` DVarE gen)
-  let insBody = [ DLetDec (DFunD 'arbitrary [ DClause [] insGen ]) ]
-  return [ DInstanceD Nothing Nothing insCxt insTy insBody ]
+  let insCxt =
+        [ DConT ''Arbitrary `DAppT` DVarT (dTyVarBndrName tvb)
+        | tvb <- dtvbs
+        ]
+  let insGen =
+        DLetE
+          [ DFunD
+              gen
+              [ DClause
+                  [DVarP size]
+                  ( dCaseE
+                      (DVarE size)
+                      [ DMatch
+                          (DLitP (IntegerL 0))
+                          (DVarE 'oneof `DAppE` mkListDExp termGens)
+                      , DMatch
+                          DWildP
+                          (DVarE 'oneof `DAppE` mkListDExp (termGens <> recGens))
+                      ]
+                  )
+              ]
+          ]
+          (DVarE 'sized `DAppE` DVarE gen)
+  let insBody = [DLetDec (DFunD 'arbitrary [DClause [] insGen])]
+  return [DInstanceD Nothing Nothing insCxt insTy insBody]
 
 -- | Create the appropriate generator of a constructor
 mkConGen :: DType -> Name -> Name -> DCon -> Q DExp
@@ -61,27 +70,29 @@ mkConFieldGen dty gen_ size_ fieldTy = dsExp =<< mkGen fieldTy
       -- The field is self recursive:
       -- We use the reference to the recursive generator
       | ty .==. dty =
-          [e| $(varE gen_) (max 0 ($(varE size_) - 1)) |]
+          [e|$(varE gen_) (max 0 ($(varE size_) - 1))|]
       -- Some special cases in between
       | Just a <- isMaybeOf ty =
-          [e| sizedMaybe $(mkGen a) |]
+          [e|sizedMaybe $(mkGen a)|]
       -- Types of kind `* -> *`
       | (DConT f `DAppT` a) <- ty =
-          ifM (isInstance ''Arbitrary1 [ConT f])
-              [e| liftArbitrary $(mkGen a) |]
-              [e| arbitrary |]
+          ifM
+            (isInstance ''Arbitrary1 [ConT f])
+            [e|liftArbitrary $(mkGen a)|]
+            [e|arbitrary|]
       -- Types of kind `* -> * -> *`
       | (DConT f `DAppT` t1 `DAppT` t2) <- ty =
-          ifM (isInstance ''Arbitrary2 [ConT f])
-              [e| liftArbitrary2 $(mkGen t1) $(mkGen t2) |]
-              [e| arbitrary |]
+          ifM
+            (isInstance ''Arbitrary2 [ConT f])
+            [e|liftArbitrary2 $(mkGen t1) $(mkGen t2)|]
+            [e|arbitrary|]
       -- The field type is something else:
       -- Hope for it having an Arbitrary instance
       | otherwise =
-          [e| arbitrary |]
+          [e|arbitrary|]
 
 sizedMaybe :: Gen a -> Gen (Maybe a)
 sizedMaybe gen = sized $ \size ->
   if size == 0
-  then return Nothing
-  else liftArbitrary gen
+    then return Nothing
+    else liftArbitrary gen

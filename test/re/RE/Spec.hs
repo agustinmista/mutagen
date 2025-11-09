@@ -1,11 +1,13 @@
 module RE.Spec where
 
-import Test.Mutagen
-
-import RE.Types
 import RE.Match
+import RE.Types
+import Test.Mutagen
 
 prop_optimize :: (RE ASCII, [ASCII]) -> Result
 prop_optimize (re, str) =
-  not (null str) && re `matches` str ==>
-  optimize re `matches` str
+  not (null str)
+    && re
+      `matches` str
+      ==> optimize re
+      `matches` str

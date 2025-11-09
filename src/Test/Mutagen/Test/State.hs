@@ -2,25 +2,22 @@
 
 module Test.Mutagen.Test.State where
 
-import Data.Typeable
-
 import Data.PQueue.Prio.Min (MinPQueue)
 import Data.Time.Clock.POSIX
-
+import Data.Typeable
+import Test.Mutagen.Fragment
+import Test.Mutagen.Mutant
+import Test.Mutagen.Mutation
+import Test.Mutagen.Property
+import Test.Mutagen.Test.Batch
+import Test.Mutagen.Test.Config
+import Test.Mutagen.Tracer
 import Test.QuickCheck.Gen (Gen)
 import Test.QuickCheck.Random (QCGen, newQCGen)
 
-import Test.Mutagen.Tracer
-import Test.Mutagen.Property
-import Test.Mutagen.Mutation
-import Test.Mutagen.Mutant
-import Test.Mutagen.Fragment
-import Test.Mutagen.Test.Config
-import Test.Mutagen.Test.Batch
-
 ----------------------------------------
--- | Testing state (internal)
 
+-- | Testing state (internal)
 data State log
   = State
   ----------------------------------------
@@ -40,36 +37,30 @@ data State log
   , stMaxTraceLength :: !(Maybe Int)
   , stChatty :: !Bool
   , stDebug :: !Bool
-
-  ----------------------------------------
-  -- Test case generation
-  , stNextSeed :: !QCGen
+  , ----------------------------------------
+    -- Test case generation
+    stNextSeed :: !QCGen
   -- ^ The next seed to be used by `stArgsGen`
   , stArgsGen :: !(Gen Args)
   -- ^ The random generator of inputs
-
-  ----------------------------------------
-  -- Property runner
-  , stArgsRunner :: !(Args -> Result)
-
-  ----------------------------------------
-  -- Trace logs
-  , stGeneratedTraceNodes :: !Int
+  , ----------------------------------------
+    -- Property runner
+    stArgsRunner :: !(Args -> Result)
+  , ----------------------------------------
+    -- Trace logs
+    stGeneratedTraceNodes :: !Int
   , stPassedTraceLog :: !log
   , stDiscardedTraceLog :: !log
-
-  ----------------------------------------
-  -- Mutation queues
-  , stPassedQueue :: !MutationQueue
+  , ----------------------------------------
+    -- Mutation queues
+    stPassedQueue :: !MutationQueue
   , stDiscardedQueue :: !MutationQueue
-
-  ----------------------------------------
-  -- Global fragment store
-  , stFragmentStore :: !FragmentStore
-
-  ----------------------------------------
-  -- Statistics
-  , stStartTime :: !Integer
+  , ----------------------------------------
+    -- Global fragment store
+    stFragmentStore :: !FragmentStore
+  , ----------------------------------------
+    -- Statistics
+    stStartTime :: !Integer
   , stCurrentGenSize :: !Int
   , stNumGenerated :: !Int
   , stNumMutatedFromPassed :: !Int
@@ -85,7 +76,7 @@ data State log
   , stNumTraceLogResets :: !Int
   }
 
-createInitialState :: forall log. TraceLogger log => Config -> Property -> IO (State log)
+createInitialState :: forall log. (TraceLogger log) => Config -> Property -> IO (State log)
 createInitialState cfg (Property gen argsRunner) = do
   -- rng generator
   rng <- newQCGen
@@ -97,52 +88,54 @@ createInitialState cfg (Property gen argsRunner) = do
   passedTraceLog <- emptyTraceLog traceNodes
   discardedTraceLog <- emptyTraceLog traceNodes
   -- fragmentize the initial example seeds
-  let initialFragmentStore = if useFragments cfg
-                             then foldr (storeFragments (filterFragments cfg)) emptyFragmentStore (examples cfg)
-                             else emptyFragmentStore
+  let initialFragmentStore =
+        if useFragments cfg
+          then foldr (storeFragments (filterFragments cfg)) emptyFragmentStore (examples cfg)
+          else emptyFragmentStore
   -- build the initial state
-  return State
-    -- From config
-    { stMaxSuccess = maxSuccess cfg
-    , stMaxDiscardRatio = maxDiscardRatio cfg
-    , stTimeout = timeout cfg
-    , stMaxGenSize = maxGenSize cfg
-    , stRandomMutations = randomMutations cfg
-    , stRandomFragments = randomFragments cfg
-    , stMutationLimit = maybe (maxGenSize cfg) id (mutationLimit cfg)
-    , stAutoResetAfter = autoResetAfter cfg
-    , stUseLazyPrunning = useLazyPrunning cfg
-    , stMutationOrder = mutationOrder cfg
-    , stUseFragments = useFragments cfg
-    , stFilterFragments = filterFragments cfg
-    , stMaxTraceLength = maxTraceLength cfg
-    , stChatty = chatty cfg || debug cfg
-    , stDebug = debug cfg
-    -- Internal
-    , stNextSeed = rng
-    , stArgsGen = gen
-    , stArgsRunner = argsRunner
-    , stGeneratedTraceNodes = traceNodes
-    , stPassedTraceLog = passedTraceLog
-    , stDiscardedTraceLog = discardedTraceLog
-    , stPassedQueue = mempty
-    , stDiscardedQueue = mempty
-    , stFragmentStore = initialFragmentStore
-    , stStartTime = now
-    , stCurrentGenSize = 0
-    , stNumGenerated = 0
-    , stNumMutatedFromPassed = 0
-    , stNumMutatedFromDiscarded = 0
-    , stNumPureMutants = 0
-    , stNumRandMutants = 0
-    , stNumFragMutants = 0
-    , stNumPassed = 0
-    , stNumDiscarded = 0
-    , stNumInteresting = 0
-    , stNumBoring = 0
-    , stNumTestsSinceLastInteresting = 0
-    , stNumTraceLogResets = 0
-    }
+  return
+    State
+      { -- From config
+        stMaxSuccess = maxSuccess cfg
+      , stMaxDiscardRatio = maxDiscardRatio cfg
+      , stTimeout = timeout cfg
+      , stMaxGenSize = maxGenSize cfg
+      , stRandomMutations = randomMutations cfg
+      , stRandomFragments = randomFragments cfg
+      , stMutationLimit = maybe (maxGenSize cfg) id (mutationLimit cfg)
+      , stAutoResetAfter = autoResetAfter cfg
+      , stUseLazyPrunning = useLazyPrunning cfg
+      , stMutationOrder = mutationOrder cfg
+      , stUseFragments = useFragments cfg
+      , stFilterFragments = filterFragments cfg
+      , stMaxTraceLength = maxTraceLength cfg
+      , stChatty = chatty cfg || debug cfg
+      , stDebug = debug cfg
+      , -- Internal
+        stNextSeed = rng
+      , stArgsGen = gen
+      , stArgsRunner = argsRunner
+      , stGeneratedTraceNodes = traceNodes
+      , stPassedTraceLog = passedTraceLog
+      , stDiscardedTraceLog = discardedTraceLog
+      , stPassedQueue = mempty
+      , stDiscardedQueue = mempty
+      , stFragmentStore = initialFragmentStore
+      , stStartTime = now
+      , stCurrentGenSize = 0
+      , stNumGenerated = 0
+      , stNumMutatedFromPassed = 0
+      , stNumMutatedFromDiscarded = 0
+      , stNumPureMutants = 0
+      , stNumRandMutants = 0
+      , stNumFragMutants = 0
+      , stNumPassed = 0
+      , stNumDiscarded = 0
+      , stNumInteresting = 0
+      , stNumBoring = 0
+      , stNumTestsSinceLastInteresting = 0
+      , stNumTraceLogResets = 0
+      }
 
 ----------------------------------------
 -- State modifiers
@@ -154,60 +147,60 @@ st ! f = f st
 infixl 2 !
 
 setNextSeed :: QCGen -> State log -> State log
-setNextSeed val st = st { stNextSeed = val }
+setNextSeed val st = st{stNextSeed = val}
 
 setCurrentGenSize :: Int -> State log -> State log
-setCurrentGenSize val st = st { stCurrentGenSize = val }
+setCurrentGenSize val st = st{stCurrentGenSize = val}
 
 setAutoResetAfter :: Maybe Int -> State log -> State log
-setAutoResetAfter val st = st { stAutoResetAfter = val }
+setAutoResetAfter val st = st{stAutoResetAfter = val}
 
 setRandomMutations :: Int -> State log -> State log
-setRandomMutations val st = st { stRandomMutations = val }
+setRandomMutations val st = st{stRandomMutations = val}
 
 setPassedQueue :: MutationQueue -> State log -> State log
-setPassedQueue    val st = st { stPassedQueue = val }
+setPassedQueue val st = st{stPassedQueue = val}
 
 setDiscardedQueue :: MutationQueue -> State log -> State log
-setDiscardedQueue val st = st { stDiscardedQueue = val }
+setDiscardedQueue val st = st{stDiscardedQueue = val}
 
 setFragmentStore :: FragmentStore -> State log -> State log
-setFragmentStore  val st = st { stFragmentStore = val }
+setFragmentStore val st = st{stFragmentStore = val}
 
 increaseNumTraceLogResets :: State log -> State log
-increaseNumTraceLogResets st = st { stNumTraceLogResets = stNumTraceLogResets st + 1 }
+increaseNumTraceLogResets st = st{stNumTraceLogResets = stNumTraceLogResets st + 1}
 
 increaseNumPassed :: State log -> State log
-increaseNumPassed st = st { stNumPassed = stNumPassed st + 1 }
+increaseNumPassed st = st{stNumPassed = stNumPassed st + 1}
 
 increaseNumDiscarded :: State log -> State log
-increaseNumDiscarded st = st { stNumDiscarded = stNumDiscarded st + 1 }
+increaseNumDiscarded st = st{stNumDiscarded = stNumDiscarded st + 1}
 
 increaseNumGenerated :: State log -> State log
-increaseNumGenerated st = st { stNumGenerated = stNumGenerated st + 1 }
+increaseNumGenerated st = st{stNumGenerated = stNumGenerated st + 1}
 
 increaseNumMutatedFromPassed :: State log -> State log
-increaseNumMutatedFromPassed st = st { stNumMutatedFromPassed = stNumMutatedFromPassed st + 1 }
+increaseNumMutatedFromPassed st = st{stNumMutatedFromPassed = stNumMutatedFromPassed st + 1}
 
 increaseNumMutatedFromDiscarded :: State log -> State log
-increaseNumMutatedFromDiscarded st = st { stNumMutatedFromDiscarded = stNumMutatedFromDiscarded st + 1 }
+increaseNumMutatedFromDiscarded st = st{stNumMutatedFromDiscarded = stNumMutatedFromDiscarded st + 1}
 
 increaseNumInteresting :: State log -> State log
-increaseNumInteresting st = st { stNumInteresting = stNumInteresting st + 1 }
+increaseNumInteresting st = st{stNumInteresting = stNumInteresting st + 1}
 
 increaseNumBoring :: State log -> State log
-increaseNumBoring st = st { stNumBoring = stNumBoring st + 1 }
+increaseNumBoring st = st{stNumBoring = stNumBoring st + 1}
 
 increaseNumTestsSinceLastInteresting :: State log -> State log
-increaseNumTestsSinceLastInteresting st = st { stNumTestsSinceLastInteresting = stNumTestsSinceLastInteresting st + 1 }
+increaseNumTestsSinceLastInteresting st = st{stNumTestsSinceLastInteresting = stNumTestsSinceLastInteresting st + 1}
 
 increaseMutantKindCounter :: MutantKind -> State log -> State log
-increaseMutantKindCounter PureMutant st = st { stNumPureMutants = stNumPureMutants st + 1 }
-increaseMutantKindCounter RandMutant st = st { stNumRandMutants = stNumRandMutants st + 1 }
-increaseMutantKindCounter FragMutant st = st { stNumFragMutants = stNumFragMutants st + 1 }
+increaseMutantKindCounter PureMutant st = st{stNumPureMutants = stNumPureMutants st + 1}
+increaseMutantKindCounter RandMutant st = st{stNumRandMutants = stNumRandMutants st + 1}
+increaseMutantKindCounter FragMutant st = st{stNumFragMutants = stNumFragMutants st + 1}
 
 resetNumTestsSinceLastInteresting :: State log -> State log
-resetNumTestsSinceLastInteresting st = st { stNumTestsSinceLastInteresting = 0 }
+resetNumTestsSinceLastInteresting st = st{stNumTestsSinceLastInteresting = 0}
 
 ----------------------------------------
 -- Mutation priority queues
@@ -215,9 +208,9 @@ resetNumTestsSinceLastInteresting st = st { stNumTestsSinceLastInteresting = 0 }
 -- Mutation candidates
 type MutationQueue =
   MinPQueue
-    Int                  -- The candidate priority
-    ( Args               -- The test case inputs
-    , Trace              -- The code coverage it triggered
+    Int -- The candidate priority
+    ( Args -- The test case inputs
+    , Trace -- The code coverage it triggered
     , MutationBatch Args -- The batch of possible mutations
     )
 
@@ -227,8 +220,11 @@ createOrInheritMutationBatch st args parentbatch pos isPassed =
   case parentbatch of
     -- test case was mutated from an existing one, we can augment its parent mutation batch
     Just mb ->
-      newMutationBatchFromParent mb
-        pos isPassed args
+      newMutationBatchFromParent
+        mb
+        pos
+        isPassed
+        args
     -- test case was freshly generated, we need to initialize a new mutation batch
     Nothing ->
       newMutationBatch
@@ -237,7 +233,9 @@ createOrInheritMutationBatch st args parentbatch pos isPassed =
         (stMaxGenSize st)
         (stRandomFragments st)
         (stMutationLimit st)
-        pos isPassed args
+        pos
+        isPassed
+        args
 
 ----------------------------------------
 -- State-related utilities
@@ -254,14 +252,18 @@ passedTimeout st
 computeSize :: State log -> Int
 computeSize st
   | stNumPassed st `roundTo` stMaxGenSize st + stMaxGenSize st <= stMaxSuccess st
-    || stNumPassed st >= stMaxSuccess st
-    || stMaxSuccess st `mod` stMaxGenSize st == 0 =
-    (stNumPassed st `mod` stMaxGenSize st + stNumDiscarded st `div` 10) `min` stMaxGenSize st
+      || stNumPassed st >= stMaxSuccess st
+      || stMaxSuccess st `mod` stMaxGenSize st == 0 =
+      (stNumPassed st `mod` stMaxGenSize st + stNumDiscarded st `div` 10) `min` stMaxGenSize st
   | otherwise =
-      ((stNumPassed st `mod` stMaxGenSize st) * stMaxGenSize st
-       `div` (stMaxSuccess st `mod` stMaxGenSize st) + stNumDiscarded st `div` 10) `min` stMaxGenSize st
+      ( (stNumPassed st `mod` stMaxGenSize st)
+          * stMaxGenSize st
+          `div` (stMaxSuccess st `mod` stMaxGenSize st)
+          + stNumDiscarded st `div` 10
+      )
+        `min` stMaxGenSize st
 
-roundTo :: Integral a => a -> a -> a
+roundTo :: (Integral a) => a -> a -> a
 roundTo n m = (n `div` m) * m
 
 at0 :: (Int -> Int -> Int) -> Int -> Int -> Int -> Int

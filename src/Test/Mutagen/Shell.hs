@@ -1,10 +1,9 @@
 module Test.Mutagen.Shell where
 
-import Text.Printf
 import Control.Monad
-
-import System.Process
 import System.Exit
+import System.Process
+import Text.Printf
 
 -- Run a shell command passing inputs via stdin and collecting stdout
 shell :: FilePath -> [String] -> String -> IO String
@@ -24,4 +23,4 @@ hasFailed ExitSuccess = False
 
 isExitSuccess :: ExitCode -> Bool
 isExitSuccess ExitSuccess = True
-isExitSuccess _           = False
+isExitSuccess _ = False

@@ -1,47 +1,43 @@
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Test.Mutagen.Fragment where
 
 import Control.Monad
-
-import Data.Maybe
-import Data.Typeable
-
 import Data.Map (Map)
 import qualified Data.Map as Map
-
+import Data.Maybe
 import Data.Set (Set)
 import qualified Data.Set as Set
-
-import Test.QuickCheck
-
+import Data.Typeable
 -- For providing some default Fragmentable instances
 import Data.Word
+import Test.QuickCheck
 
 ----------------------------------------
 -- Test case fragments as existential typeable values
 
 type IsFragment a = (Typeable a, Ord a, Show a)
 
-data Fragment = forall a. IsFragment a => Fragment a
+data Fragment = forall a. (IsFragment a) => Fragment a
 
 instance Eq Fragment where
   Fragment f1 == Fragment f2 =
     case cast f2 of
       Just f2' -> f1 == f2'
-      Nothing  -> False
+      Nothing -> False
 
 instance Ord Fragment where
   compare (Fragment f1) (Fragment f2) =
     case cast f2 of
       Just f2' -> compare f1 f2'
-      Nothing  -> LT
-      -- This ^ shouldn't be needed because the fragments should be of the same
-      -- type at this point. Nonetheless, I hope it works!!
+      Nothing -> LT
+
+-- This ^ shouldn't be needed because the fragments should be of the same
+-- type at this point. Nonetheless, I hope it works!!
 
 instance Show Fragment where
   show (Fragment a) = "Fragment(" <> show a <> ")"
@@ -79,17 +75,17 @@ insertFragment Nothing tr fr (FragmentStore fs) =
   FragmentStore (Map.insertWith Set.union tr (Set.singleton fr) fs)
 insertFragment (Just trs) tr fr (FragmentStore fs)
   | tr `elem` trs = FragmentStore (Map.insertWith Set.union tr (Set.singleton fr) fs)
-  | otherwise     = FragmentStore fs
+  | otherwise = FragmentStore fs
 
-collectFragments :: Fragmentable a => Maybe [TypeRep] -> a -> FragmentStore
+collectFragments :: (Fragmentable a) => Maybe [TypeRep] -> a -> FragmentStore
 collectFragments allowed a = foldr (uncurry (insertFragment allowed)) emptyFragmentStore fts
   where
     fts = Set.map (\(Fragment x) -> (typeOf x, Fragment x)) (fragmentize a)
 
-storeFragments :: Fragmentable a => Maybe [TypeRep] -> a -> FragmentStore -> FragmentStore
+storeFragments :: (Fragmentable a) => Maybe [TypeRep] -> a -> FragmentStore -> FragmentStore
 storeFragments allowed a fs = fs <> collectFragments allowed a
 
-sampleFragments :: Typeable a => a -> FragmentStore -> Gen [a]
+sampleFragments :: (Typeable a) => a -> FragmentStore -> Gen [a]
 sampleFragments a (FragmentStore fs) = do
   case Map.lookup (typeOf a) fs of
     Nothing ->
@@ -106,13 +102,13 @@ sampleFragments a (FragmentStore fs) = do
 ----------------------------------------
 -- Fragmentizing values
 
-class IsFragment a => Fragmentable a where
+class (IsFragment a) => Fragmentable a where
   fragmentize :: a -> Set Fragment
   fragmentize = singleton
 
 -- Helpers
 
-singleton :: Fragmentable a => a -> Set Fragment
+singleton :: (Fragmentable a) => a -> Set Fragment
 singleton = Set.singleton . Fragment
 
 ----------------------------------------
@@ -128,37 +124,44 @@ singleton = Set.singleton . Fragment
 --           return (maybe a id (cast a'))
 --       ]
 
-
 ----------------------------------------
 -- Fragmentable instances
 ----------------------------------------
 
 instance Fragmentable Int
+
 instance Fragmentable Double
+
 instance Fragmentable Float
+
 instance Fragmentable Word8
+
 instance Fragmentable Word16
+
 instance Fragmentable Word32
+
 instance Fragmentable Word64
+
 instance Fragmentable Char
+
 instance Fragmentable Bool
 
-instance Fragmentable a => Fragmentable (Maybe a) where
+instance (Fragmentable a) => Fragmentable (Maybe a) where
   fragmentize x =
     case x of
       Nothing -> singleton x
       Just v1 -> singleton x <> fragmentize v1
 
 instance (Fragmentable a, Fragmentable b) => Fragmentable (Either a b) where
-  fragmentize (Left x)  = singleton @(Either a b) (Left x)  <> fragmentize x
+  fragmentize (Left x) = singleton @(Either a b) (Left x) <> fragmentize x
   fragmentize (Right x) = singleton @(Either a b) (Right x) <> fragmentize x
 
-instance Fragmentable a => Fragmentable [a] where
-  fragmentize []     = singleton @[a] []
-  fragmentize (x:xs) = singleton @[a] (x:xs) <> fragmentize x <> fragmentize xs
+instance (Fragmentable a) => Fragmentable [a] where
+  fragmentize [] = singleton @[a] []
+  fragmentize (x : xs) = singleton @[a] (x : xs) <> fragmentize x <> fragmentize xs
 
 instance (Fragmentable k, Fragmentable v) => Fragmentable (Map k v) where
-  fragmentize m = mconcat [ fragmentize k <> fragmentize v | (k, v) <- Map.toList m ]
+  fragmentize m = mconcat [fragmentize k <> fragmentize v | (k, v) <- Map.toList m]
 
 -- Tuple instances
 

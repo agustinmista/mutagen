@@ -1,11 +1,11 @@
 {-# LANGUAGE TypeFamilies #-}
+
 module Test.Mutagen.Tracer.TraceLogger where
 
 import Data.Kind
-
+import Test.Mutagen.Tracer.Bitmap
 import Test.Mutagen.Tracer.Trace
 import Test.Mutagen.Tracer.Tree
-import Test.Mutagen.Tracer.Bitmap
 
 ----------------------------------------
 -- A type class for trace stores

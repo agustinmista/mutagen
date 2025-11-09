@@ -1,13 +1,11 @@
 {-# LANGUAGE TemplateHaskellQuotes #-}
+
 module Test.Mutagen.TH.Fragmentable where
 
 import Control.Monad
-
 import Language.Haskell.TH
 import Language.Haskell.TH.Desugar
-
 import Test.Mutagen.Fragment (Fragmentable, fragmentize, singleton)
-
 import Test.Mutagen.TH.Util
 
 ----------------------------------------
@@ -26,11 +24,12 @@ deriveFragmentable name ignored = do
   insClause <- deriveFragmentize wantedcons
   -- Build the Mutable instance
   let insTy = DConT ''Fragmentable `DAppT` dty
-  let insCxt = [ DConT ''Fragmentable `DAppT` DVarT (dTyVarBndrName tvb)
-               | tvb <- dtvbs ]
-  let insBody = [ DLetDec (DFunD 'fragmentize [insClause]) ]
-  return [ DInstanceD Nothing Nothing insCxt insTy insBody ]
-
+  let insCxt =
+        [ DConT ''Fragmentable `DAppT` DVarT (dTyVarBndrName tvb)
+        | tvb <- dtvbs
+        ]
+  let insBody = [DLetDec (DFunD 'fragmentize [insClause])]
+  return [DInstanceD Nothing Nothing insCxt insTy insBody]
 
 -- This one is a bit tricky, the TH desugarer removes as (@) patterns, so the
 -- only way to have a variable binding the full input is to introduce it as a
@@ -47,9 +46,11 @@ deriveFragmentize cons = do
   let mappendExp x y = DVarE '(<>) `DAppE` x `DAppE` y
   caseCons <- forM cons $ \con -> do
     (pvs, dpat) <- createDPat con
-    let fragmentizeFieldExps = [ DVarE 'fragmentize `DAppE`
-                                 DVarE pv
-                               | pv <- pvs ]
+    let fragmentizeFieldExps =
+          [ DVarE 'fragmentize
+              `DAppE` DVarE pv
+          | pv <- pvs
+          ]
     let caseBody = foldl mappendExp inputFragment fragmentizeFieldExps
     return (DMatch dpat caseBody)
   let clauseBody = dCaseE (DVarE input) caseCons

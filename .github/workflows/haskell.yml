@@ -7,8 +7,18 @@ on:
 permissions:
   contents: read
 jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Nix
+        uses: cachix/install-nix-action@v31
+      - name: Format Haskell files
+        run: MODE=check nix run .#scripts.run-fourmolu
   build:
     runs-on: ubuntu-latest
+    needs: format
     strategy:
       fail-fast: false
       matrix:

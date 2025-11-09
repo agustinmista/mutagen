@@ -1,23 +1,19 @@
 module Test.Mutagen.Test.Terminal where
 
 import Control.Monad
-
 import Data.Maybe
-import Data.Time.Clock.POSIX
 import qualified Data.PQueue.Prio.Min as PQueue
-
-import System.IO
+import Data.Time.Clock.POSIX
 import System.Console.ANSI
-
-import Text.Printf
-import Text.Pretty.Simple
-
-import Test.Mutagen.Tracer.Trace
-import Test.Mutagen.Property
-import Test.Mutagen.Mutation
+import System.IO
 import Test.Mutagen.Fragment
-import Test.Mutagen.Test.State
+import Test.Mutagen.Mutation
+import Test.Mutagen.Property
 import Test.Mutagen.Test.Batch
+import Test.Mutagen.Test.State
+import Test.Mutagen.Tracer.Trace
+import Text.Pretty.Simple
+import Text.Printf
 
 ----------------------------------------
 -- Terminal reporters
@@ -51,8 +47,10 @@ printGeneratedTestCase args = do
 
 printOriginalTestCase :: Int -> Args -> Bool -> IO ()
 printOriginalTestCase prio args isPassed = do
-  printf ">>> Mutating %s test case (prio=%d):\n"
-    (if isPassed then "passed" else "discarded") prio
+  printf
+    ">>> Mutating %s test case (prio=%d):\n"
+    (if isPassed then "passed" else "discarded")
+    prio
   prettyPrint args
 
 printMutatedTestCase :: Args -> IO ()
@@ -72,35 +70,56 @@ printMutatedTestCaseTrace tr = do
 
 printBatchStatus :: MutationBatch Args -> IO ()
 printBatchStatus mbatch = do
-  printf ">>> Current mutation batch: %d tests enqueued, %d mutations left\n"
-    (length (mb_curr_queue mbatch)) (mb_rand_num mbatch)
+  printf
+    ">>> Current mutation batch: %d tests enqueued, %d mutations left\n"
+    (length (mb_curr_queue mbatch))
+    (mb_rand_num mbatch)
   printf ">>> Mutated positions:\n"
   mapM_ (\pos -> putStrLn (show pos <> " *")) (reverse (mb_past_pos mbatch))
   printf ">>> Next mutable positions:\n"
   case mb_next_pos mbatch of
     [] -> return ()
-    (p:ps) -> do
+    (p : ps) -> do
       putStrLn (show p <> " <== current")
       mapM_ print ps
 
 printGlobalStats :: State log -> IO ()
 printGlobalStats st = do
   printf ">>> Statistics:\n"
-  printf "* Executed test cases: %d (%d interesting, %d boring) (last interesting was %d tests ago)\n"
-    (stNumInteresting st + stNumBoring st) (stNumInteresting st) (stNumBoring st) (stNumTestsSinceLastInteresting st)
-  printf "* Passed %d tests (%d discarded)\n"
-    (stNumPassed st) (stNumDiscarded st)
-  printf "* Tests origin: %d generated, %d mutated from passed, %d mutated from discarded\n"
-    (stNumGenerated st) (stNumMutatedFromPassed st) (stNumMutatedFromDiscarded st)
-  printf "* Mutant kinds: %d pure, %d random, %d fragments\n"
-    (stNumPureMutants st) (stNumRandMutants st) (stNumFragMutants st)
-  printf "* Enqueued tests for mutation: %d passed, %d discarded\n"
-    (PQueue.size (stPassedQueue st)) (PQueue.size (stDiscardedQueue st))
-  printf "* Auto-reset is %s, using %d random mutations (after %d trace log resets)\n"
-    (maybe "off" (const "on") (stAutoResetAfter st)) (stRandomMutations st) (stNumTraceLogResets st)
-  printf "* Current generation size: %d\n"
+  printf
+    "* Executed test cases: %d (%d interesting, %d boring) (last interesting was %d tests ago)\n"
+    (stNumInteresting st + stNumBoring st)
+    (stNumInteresting st)
+    (stNumBoring st)
+    (stNumTestsSinceLastInteresting st)
+  printf
+    "* Passed %d tests (%d discarded)\n"
+    (stNumPassed st)
+    (stNumDiscarded st)
+  printf
+    "* Tests origin: %d generated, %d mutated from passed, %d mutated from discarded\n"
+    (stNumGenerated st)
+    (stNumMutatedFromPassed st)
+    (stNumMutatedFromDiscarded st)
+  printf
+    "* Mutant kinds: %d pure, %d random, %d fragments\n"
+    (stNumPureMutants st)
+    (stNumRandMutants st)
+    (stNumFragMutants st)
+  printf
+    "* Enqueued tests for mutation: %d passed, %d discarded\n"
+    (PQueue.size (stPassedQueue st))
+    (PQueue.size (stDiscardedQueue st))
+  printf
+    "* Auto-reset is %s, using %d random mutations (after %d trace log resets)\n"
+    (maybe "off" (const "on") (stAutoResetAfter st))
+    (stRandomMutations st)
+    (stNumTraceLogResets st)
+  printf
+    "* Current generation size: %d\n"
     (stCurrentGenSize st)
-  printf "* Fragment store size: %s\n"
+  printf
+    "* Fragment store size: %s\n"
     (show (fragmentStoreSize (stFragmentStore st)))
   now <- round <$> getPOSIXTime
   let elapsed = now - stStartTime st
@@ -124,7 +143,8 @@ reportCounterexample st as res = do
   clear
   printGlobalStats st
   printf ">>> Found counterexample!\n"
-  printf "* Reason of failure: %s\n"
+  printf
+    "* Reason of failure: %s\n"
     (fromMaybe "assertion failed" (reason res))
   when (isJust (exc res)) $ do
     printf "* The exception was:\n%s\n" (show (fromJust (exc res)))
@@ -141,7 +161,7 @@ put str = putStr str >> hFlush stdout
 clear :: IO ()
 clear = clearScreen >> setCursorPosition 0 0 >> cursorUp 1 >> hFlush stdout
 
-prettyPrint :: Show a => a -> IO ()
+prettyPrint :: (Show a) => a -> IO ()
 prettyPrint =
   pPrintOpt
     CheckColorTty

@@ -55,10 +55,27 @@
           builtins.listToAttrs (
             builtins.map (compiler: lib.nameValuePair compiler (f (hsPkgsFor compiler))) supportedGHCs
           );
+
+        scripts = {
+          run-fourmolu = pkgs.writeShellApplication {
+            name = "run-fourmolu";
+            runtimeInputs = [ pkgs.fourmolu ];
+            text = ''
+              MODE=''${MODE:-inplace}
+              echo "Running fourmolu in $MODE mode"
+              git ls-files '*.hs' | \
+                xargs fourmolu \
+                  --color always \
+                  --check-idempotence \
+                  --mode "$MODE"
+            '';
+          };
+        };
       in
       {
         packages = {
           default = self.packages.${system}.${defaultGHC}.mutagen;
+          inherit scripts;
         }
         // forEachSupportedGHC (hsPkgs: {
           inherit (hsPkgs) mutagen;
@@ -73,6 +90,7 @@
             packages = ps: [ ps.mutagen ];
             withHoogle = true;
             buildInputs = [
+              scripts.run-fourmolu
               hsPkgs.cabal-install
               hsPkgs.haskell-language-server
             ];

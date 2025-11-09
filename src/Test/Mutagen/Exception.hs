@@ -12,8 +12,8 @@ tryEvaluateIO m = Exc.tryJust notAsync (m >>= Exc.evaluate)
   where
     notAsync :: AnException -> Maybe AnException
     notAsync e = case Exc.fromException e of
-        Just (Exc.SomeAsyncException _) -> Nothing
-        Nothing                         -> Just e
+      Just (Exc.SomeAsyncException _) -> Nothing
+      Nothing -> Just e
 
 evaluate :: a -> IO a
 evaluate = Exc.evaluate
@@ -32,12 +32,12 @@ discard :: a
 isDiscard :: AnException -> Bool
 (discard, isDiscard) =
   (error msg, isDiscard')
- where
-  msg = "DISCARD. You should not see this exception, it is internal to Mutagen."
-  isDiscard' e =
-    case Exc.fromException e of
-      Just (Exc.ErrorCall msg') -> msg' == msg
-      _                         -> False
+  where
+    msg = "DISCARD. You should not see this exception, it is internal to Mutagen."
+    isDiscard' e =
+      case Exc.fromException e of
+        Just (Exc.ErrorCall msg') -> msg' == msg
+        _ -> False
 
 finally :: IO a -> IO b -> IO a
 finally = Exc.finally
