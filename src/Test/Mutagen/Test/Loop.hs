@@ -195,12 +195,10 @@ execArgsRunner st args
 updateStateAfterInterestingPassed :: State log -> Args -> Maybe (MutationBatch Args) -> Trace -> Maybe [Pos] -> Int -> State log
 updateStateAfterInterestingPassed st args parent tr eval_pos prio =
   let mbatch = createOrInheritMutationBatch st args parent eval_pos True
-      queueInsert | stUseLIFO st = PQueue.insert prio
-                  | otherwise    = PQueue.insertBehind 0
   in st ! increaseNumPassed
         ! increaseNumInteresting
         ! resetNumTestsSinceLastInteresting
-        ! setPassedQueue (queueInsert (args, tr, mbatch) (stPassedQueue st))
+        ! setPassedQueue (PQueue.insert prio (args, tr, mbatch) (stPassedQueue st))
         ! setFragmentStore (if stUseFragments st
                             then storeFragments (stFilterFragments st) args (stFragmentStore st)
                             else stFragmentStore st)
@@ -208,12 +206,10 @@ updateStateAfterInterestingPassed st args parent tr eval_pos prio =
 updateStateAfterInterestingDiscarded :: State log -> Args -> Maybe (MutationBatch Args) -> Trace -> Maybe [Pos] -> Int -> State log
 updateStateAfterInterestingDiscarded st args parent tr eval_pos prio =
   let mbatch = createOrInheritMutationBatch st args parent eval_pos False
-      queueInsert | stUseLIFO st = PQueue.insert prio
-                  | otherwise    = PQueue.insertBehind 0
   in st ! increaseNumDiscarded
         ! increaseNumInteresting
         ! resetNumTestsSinceLastInteresting
-        ! setDiscardedQueue (queueInsert (args, tr, mbatch) (stDiscardedQueue st))
+        ! setDiscardedQueue (PQueue.insert prio (args, tr, mbatch) (stDiscardedQueue st))
         ! setFragmentStore (if stUseFragments st
                             then storeFragments (stFilterFragments st) args (stFragmentStore st)
                             else stFragmentStore st)

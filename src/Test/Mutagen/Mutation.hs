@@ -6,7 +6,7 @@
 module Test.Mutagen.Mutation where
 
 import Data.Typeable
-import Data.List
+import qualified Data.List as List
 import Data.Tree
 
 import Data.Map (Map)
@@ -112,11 +112,11 @@ type MutationOrder = forall a. Tree a -> [a]
 
 preorder :: MutationOrder
 preorder t = squish t []
-  where squish (Node x ts) xs = x : foldr squish xs ts
+  where squish (Node x ts) xs = x : List.foldr squish xs ts
 
 postorder :: MutationOrder
 postorder = squish []
-  where squish xs (Node x ts) = x : foldl' squish xs ts
+  where squish xs (Node x ts) = x : List.foldl' squish xs ts
 
 levelorder :: MutationOrder
 levelorder = concat . levels

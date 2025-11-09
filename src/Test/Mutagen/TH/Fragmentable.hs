@@ -52,5 +52,5 @@ deriveFragmentize cons = do
                                | pv <- pvs ]
     let caseBody = foldl mappendExp inputFragment fragmentizeFieldExps
     return (DMatch dpat caseBody)
-  let clauseBody = DCaseE (DVarE input) caseCons
+  let clauseBody = dCaseE (DVarE input) caseCons
   return (DClause [DVarP input] clauseBody)

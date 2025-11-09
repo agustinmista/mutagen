@@ -45,9 +45,18 @@ deriveDef dty mbdef cons = do
     Nothing -> do
       let terms = filter (notElem dty . dConFieldsTypes . dConFields) cons
       let sorted = sortOn (dConFieldsNum . dConFields) terms
-      when (null sorted) $
-        mutagenError "could not find a proper constructor to derive def automatically, please a default value manually" [sorted]
-      let smallest = head sorted
+      smallest <-
+        case sorted of
+          [] ->
+            mutagenError
+              (mconcat
+                [ "could not find a proper constructor to derive def automatically, "
+                , "please define a default value manually"
+                ]
+              )
+              [sorted]
+          con:_ ->
+            return con
       let defValue = mkConDExp (dConName smallest) (replicate (dConFieldsNum (dConFields smallest)) (DVarE 'def))
       return [ DLetDec (DFunD 'def [ DClause [] defValue ]) ]
 
@@ -77,7 +86,7 @@ deriveInside cons = do
       let mutdpat = DVarP mut
       let clauseBody = DVarE 'wrap `DAppE`
                        (DVarE 'inside `DAppE` DVarE pos `DAppE` DVarE mut `DAppE` DVarE (pvs !! idx)) `DAppE`
-                       (DLamE [x] (mkConDExp (dConName con) [ DVarE v | v <- replace idx pvs x ]))
+                       (dLamE [DVarP x] (mkConDExp (dConName con) [ DVarE v | v <- replace idx pvs x ]))
       return (DClause [posdpat, mutdpat, dpat] clauseBody)
   -- last clause (error message)
   let lastclause = DClause [DVarP pos, DWildP, DWildP] (DVarE 'invalidPosition `DAppE` DVarE pos)

@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fplugin=Test.Mutagen.Tracer #-}
-
+{-# OPTIONS_GHC -Wno-unused-imports #-} -- TODO: remove this after fixing the plugin
 module RE.Match where
 
 import RE.Types (RE(..))

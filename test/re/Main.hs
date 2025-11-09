@@ -16,9 +16,6 @@ main = do
       -- Go step by step
       -- debug = True,
 
-      -- Disable LIFO scheduling
-      -- useLIFO = False,
-
       -- The tracing backend, either Tree or Bitmap (default)
       -- traceMethod = Tree,    -- Prefix trees (Tries)
       -- traceMethod = Bitmap,  -- Edge-based bitmaps (like AFL)

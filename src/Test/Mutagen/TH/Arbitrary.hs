@@ -37,7 +37,7 @@ deriveArbitrary name ignored = do
   let insGen = DLetE
                [ DFunD gen
                  [ DClause [ DVarP size ]
-                   (DCaseE (DVarE size)
+                   (dCaseE (DVarE size)
                     [ DMatch (DLitP (IntegerL 0))
                       (DVarE 'oneof `DAppE` mkListDExp termGens)
                     , DMatch DWildP

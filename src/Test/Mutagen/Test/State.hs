@@ -29,7 +29,6 @@ data State log
   , stMaxDiscardRatio :: !Int
   , stTimeout :: !(Maybe Integer)
   , stMaxGenSize :: !Int
-  , stUseLIFO :: !Bool
   , stRandomMutations :: !Int
   , stMutationLimit :: !Int
   , stAutoResetAfter :: !(Maybe Int)
@@ -108,7 +107,6 @@ createInitialState cfg (Property gen argsRunner) = do
     , stMaxDiscardRatio = maxDiscardRatio cfg
     , stTimeout = timeout cfg
     , stMaxGenSize = maxGenSize cfg
-    , stUseLIFO = useLIFO cfg
     , stRandomMutations = randomMutations cfg
     , stRandomFragments = randomFragments cfg
     , stMutationLimit = maybe (maxGenSize cfg) id (mutationLimit cfg)

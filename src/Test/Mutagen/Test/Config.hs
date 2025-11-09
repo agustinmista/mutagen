@@ -35,9 +35,6 @@ data Config
 
   ----------------------------------------
   -- Mutation options
-  , useLIFO :: Bool
-  -- ^ Use last-in-first-out to schedule mutants. If disabled, the scheduling
-  -- defaults to use a single ended queue.
   , randomMutations :: Int
   -- ^ The amount of times to sample the generator associated to a random
   -- mutant. It can be automatically increased over time if `autoResetAfter` is not
@@ -100,7 +97,6 @@ defaultConfig =
   , maxDiscardRatio = 1000
   , timeout         = Nothing
   , maxGenSize      = 10
-  , useLIFO         = True
   , randomMutations = 1
   , mutationLimit   = Nothing
   , autoResetAfter  = Just 1000
