@@ -164,6 +164,9 @@ class Testable a where
 instance Testable Property where
   property p = p
 
+instance Testable Bool where
+  property b = property (\() -> b)
+
 -- | Testable properties with one argument
 instance (IsArgs a, Res b) => Testable (a -> b) where
   property = forAll arbitrary

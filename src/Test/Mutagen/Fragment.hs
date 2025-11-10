@@ -128,6 +128,8 @@ singleton = Set.singleton . Fragment
 -- Fragmentable instances
 ----------------------------------------
 
+instance Fragmentable ()
+
 instance Fragmentable Int
 
 instance Fragmentable Double

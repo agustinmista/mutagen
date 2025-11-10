@@ -149,6 +149,9 @@ instance (Arbitrary a, Typeable a) => Mutable (Rigid a)
 ----------------------------------------
 
 -- | Base types instances
+instance Mutable () where
+  def = ()
+
 instance Mutable Int where
   def = 0
   mutate n = [Rand arbitrary, Frag (sampleFragments n)]

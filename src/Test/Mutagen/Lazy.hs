@@ -60,6 +60,9 @@ class Lazy a where
 
 ----------------------------------------
 
+instance Lazy () where
+  lazyNode = __evaluated__
+
 instance Lazy Int where
   lazyNode = __evaluated__
 
