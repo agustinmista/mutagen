@@ -6,7 +6,7 @@ import Test.Mutagen.Property
 
 -- | Testing results
 data Report
-  = AllPassed
+  = Success
       { numPassed :: Int
       , numDiscarded :: Int
       }
@@ -16,16 +16,16 @@ data Report
       , failingArgs :: Args
       }
   | GaveUp
-      { why :: String
-      , numPassed :: Int
+      { numPassed :: Int
+      , numDiscarded :: Int
+      , why :: String
+      }
+  | NoExpectedFailure
+      { numPassed :: Int
       , numDiscarded :: Int
       }
   deriving (Show)
 
 isSuccess :: Report -> Bool
-isSuccess (AllPassed{}) = True
+isSuccess (Success{}) = True
 isSuccess _ = False
-
-isFailure :: Report -> Bool
-isFailure (Counterexample{}) = True
-isFailure _ = False

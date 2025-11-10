@@ -22,13 +22,15 @@ import Test.QuickCheck.Gen (unGen)
 -- The main test loop
 
 -- We abstract the test case runner based on the way it logs execution traces
-type TestCaseRunner log = State log -> Maybe (MutationBatch Args) -> Args -> IO (Either Test (State log))
+type TestCaseRunner log = State log -> Maybe (MutationBatch Args) -> Args -> IO (Maybe Test, State log)
 
 loop :: (TraceLogger log) => TestCaseRunner log -> State log -> IO Report
 loop runner st
   -- We reached the max number of tests
   | stNumPassed st >= stMaxSuccess st =
-      doneTesting st
+      if stExpect st
+        then success st
+        else noExpectedFailure st
   -- We discarded too many tests
   | stNumDiscarded st >= stMaxDiscardRatio st * max (stNumPassed st) (stMaxSuccess st) =
       giveUp st "too many discarded tests"
@@ -57,11 +59,11 @@ loop runner st
       newTest runner st
 
 -- Testing is no more
-doneTesting :: (TraceLogger log) => State log -> IO Report
-doneTesting st = do
+success :: (TraceLogger log) => State log -> IO Report
+success st = do
   reportDoneTesting st
   return
-    AllPassed
+    Success
       { numPassed = stNumPassed st
       , numDiscarded = stNumDiscarded st
       }
@@ -88,6 +90,15 @@ counterexample st as test = do
       , failingArgs = as
       }
 
+noExpectedFailure :: (TraceLogger log) => State log -> IO Report
+noExpectedFailure st = do
+  reportNoExpectedFailure st
+  return
+    NoExpectedFailure
+      { numPassed = stNumPassed st
+      , numDiscarded = stNumDiscarded st
+      }
+
 -- Generate and run a new test
 newTest :: (TraceLogger log) => TestCaseRunner log -> State log -> IO Report
 newTest runner st = do
@@ -97,11 +108,17 @@ newTest runner st = do
   -- pick a new test case
   (args, parent, st') <- pickNextTestCase st
   -- run the test case
-  runRes <- runner st' parent args
+  (res, st'') <- runner st' parent args
   -- when we are in deep debug mode stop until the user presses enter
-  when (stDebug st) (putStrLn "Press Enter to continue..." >> void getLine)
-  -- check the test result and continue or report a counterexample
-  either (counterexample st' args) (loop runner) runRes
+  when (stDebug st'') (putStrLn "Press Enter to continue..." >> void getLine)
+  -- check the test result and report a counterexample or continue
+  case res of
+    -- Test failed and it was expected to, report counterexample
+    Just test | stExpect st'' -> counterexample st'' args test
+    -- Test failed but it was not expected to, stop testing
+    Just _ -> success st''
+    -- Test passed or discarded, continue the loop
+    Nothing -> loop runner st''
 
 ----------------------------------------
 -- Test case runners
@@ -128,19 +145,23 @@ runTestCase_generic register st parent args = do
     printRunningTest
   -- Run the test case
   (test, entries, eval_pos) <- execArgsRunner st args
+
   when (stChatty st && stUseLazyPrunning st) $ do
     printEvaluatedSubexpressions (fromJust eval_pos)
   -- Truncate the trace if it is too long
   let tr = Trace (maybe entries (flip take entries) (stMaxTraceLength st))
   when (stChatty st) $ do
     printMutatedTestCaseTrace tr
+  -- Extract property modifiers
+  let addModifiers = \s -> s{stExpect = False}
   -- Inspect the test result
   case test of
     -- Boom!
     Failed -> do
       when (stChatty st) $ do
         printTestResult "FAILED"
-      return (Left test)
+      let st'' = addModifiers st
+      return (Just test, st'')
     -- Test passed, lotta work to do now
     Passed -> do
       when (stChatty st) $ do
@@ -155,7 +176,8 @@ runTestCase_generic register st parent args = do
       let st'
             | interesting = updateStateAfterInterestingPassed st args parent tr eval_pos prio
             | otherwise = updateStateAfterBoringPassed st
-      return (Right st')
+          st'' = addModifiers st'
+      return (Nothing, st'')
     -- Test discarded, lotta work to do here too
     Discarded -> do
       when (stChatty st) $ do
@@ -170,7 +192,8 @@ runTestCase_generic register st parent args = do
       let st'
             | interesting = updateStateAfterInterestingDiscarded st args parent tr eval_pos prio
             | otherwise = updateStateAfterBoringDiscarded st
-      return (Right st')
+          st'' = addModifiers st'
+      return (Nothing, st'')
 
 ----------------------------------------
 

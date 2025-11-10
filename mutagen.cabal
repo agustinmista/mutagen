@@ -84,7 +84,9 @@ library
   if flag(MUTAGEN_TH_DEBUG)
     cpp-options: -DMUTAGEN_TH_DEBUG
 
-executable test-re
+test-suite test-re
+  type:
+    exitcode-stdio-1.0
   main-is:
     Main.hs
   hs-source-dirs:

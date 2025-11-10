@@ -152,6 +152,12 @@ reportCounterexample st as res = do
   prettyPrint as
   printf "\n"
 
+reportNoExpectedFailure :: State log -> IO ()
+reportNoExpectedFailure st = do
+  clear
+  printGlobalStats st
+  printf ">>> Expected a failure, but all tests passed!\n"
+
 ----------------------------------------
 -- Helpers
 

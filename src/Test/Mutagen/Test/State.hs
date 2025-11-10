@@ -46,6 +46,8 @@ data State log
   , ----------------------------------------
     -- Property runner
     stArgsRunner :: !(Args -> Result)
+  , stExpect :: Bool
+  -- ^ Whether we expect the property to hold or not
   , ----------------------------------------
     -- Trace logs
     stGeneratedTraceNodes :: !Int
@@ -115,6 +117,7 @@ createInitialState cfg (Property gen argsRunner) = do
         stNextSeed = rng
       , stArgsGen = gen
       , stArgsRunner = argsRunner
+      , stExpect = True -- properties should hold unless wrapped in `expectFailure`
       , stGeneratedTraceNodes = traceNodes
       , stPassedTraceLog = passedTraceLog
       , stDiscardedTraceLog = discardedTraceLog

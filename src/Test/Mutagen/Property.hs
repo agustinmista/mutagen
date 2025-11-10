@@ -63,6 +63,7 @@ data Test = Test
   { ok :: Maybe Bool
   , exc :: Maybe AnException
   , reason :: Maybe String
+  , expect :: Bool
   }
   deriving (Show)
 
@@ -79,7 +80,7 @@ pattern Discarded <- Test{ok = Nothing}
 
 -- | Test constructors
 bool :: Bool -> Test
-bool b = Test (Just b) Nothing Nothing
+bool b = Test (Just b) Nothing Nothing True
 
 passed :: Test
 passed = bool True
@@ -88,7 +89,7 @@ failed :: Test
 failed = bool False
 
 discarded :: Test
-discarded = Test Nothing Nothing Nothing
+discarded = Test Nothing Nothing Nothing True
 
 -- | Protecting results against certain exceptions
 protectResult :: Result -> Result
@@ -108,6 +109,9 @@ exception e
 -- Results are computations returning tests
 
 newtype Result = Result {unResult :: IO Test}
+
+mapResult :: (Test -> Test) -> Result -> Result
+mapResult f = Result . fmap f . unResult
 
 -- | Types that can produce results
 class Res a where
@@ -146,6 +150,9 @@ discardAfter millis a = Result $ do
 
 data Property = Property (Gen Args) (Args -> Result)
 
+mapPropertyResult :: (Result -> Result) -> Property -> Property
+mapPropertyResult f (Property gen prop) = Property gen (f . prop)
+
 ----------------------------------------
 -- Testable properties
 
@@ -164,3 +171,9 @@ instance (IsArgs a, Res b) => Testable (a -> b) where
 forAll :: (IsArgs a, Res b) => Gen a -> (a -> b) -> Property
 forAll gen f =
   Property (Args <$> gen) (\(Args as) -> result (f (unsafeCoerce as)))
+
+expectFailure :: (Testable prop) => prop -> Property
+expectFailure p =
+  mapPropertyResult
+    (mapResult (\test -> test{expect = False}))
+    (property p)
