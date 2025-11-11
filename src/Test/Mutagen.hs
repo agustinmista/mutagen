@@ -1,7 +1,5 @@
 module Test.Mutagen
   ( TraceAnn (TRACE)
-  , module Test.QuickCheck.Gen
-  , module Test.QuickCheck.Arbitrary
   , module Test.Mutagen.Property
   , module Test.Mutagen.Mutation
   , module Test.Mutagen.Mutant
@@ -10,6 +8,8 @@ module Test.Mutagen
   , module Test.Mutagen.Fragment
   , module Test.Mutagen.Shell
   , module Test.Mutagen.Test
+  , module Test.QuickCheck.Gen
+  , module Test.QuickCheck.Arbitrary
   )
 where
 

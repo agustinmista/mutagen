@@ -1,55 +1,105 @@
 {-# LANGUAGE TemplateHaskellQuotes #-}
 
-module Test.Mutagen.TH where
+-- | Entry point for Template Haskell based derivations of Mutagen type classes.
+--
+-- Currently, this supports deriving instances for the 'Arbitrary', 'Mutable',
+-- 'Lazy', and 'Fragmentable' type classes.
+--
+-- @
+--    {-# LANGUAGE TemplateHaskell #-}
+--    import qualified Test.Mutagen.TH as TH
+--
+--    data MyType = Foo | Bar | Baz Int | Qux String
+--      deriving (Show, Eq, Ord)
+--
+--    -- Derive all supported instances
+--    TH.deriveAll ''MyType
+--
+--    -- Or, alternative, derive individual instances
+--    TH.deriveInstance ''MyType ''Arbitrary
+--    TH.deriveInstance ''MyType ''Fragmentable
+--
+--    -- While optionally setting custom derivation options
+--    TH.deriveInstanceWithOptions
+--      TH.defaultTHOptions
+--        { TH.optIgnore = ['Qux] -- ignore the @Qux@ constructor
+--        , TH.optDef = Just 'Bar -- derive @def = Bar@
+--        }
+--      ''MyType
+--      ''Mutable
+-- @
+module Test.Mutagen.TH
+  ( -- * Derivation options
+    THOptions (..)
+  , defaultTHOptions
 
-import Language.Haskell.TH
-import Language.Haskell.TH.Desugar
-import Test.Mutagen
-import Test.Mutagen.TH.Arbitrary
-import Test.Mutagen.TH.Fragmentable
-import Test.Mutagen.TH.Lazy
-import Test.Mutagen.TH.Mutable
-import Test.Mutagen.TH.Util
+    -- * Derivation dispatchers
+  , deriveAll
+  , deriveInstance
+  , deriveInstanceWithOptions
+  )
+where
 
-----------------------------------------
+import Control.Monad.Extra (concatMapM)
+import Language.Haskell.TH (Dec, Name, Q)
+import Language.Haskell.TH.Desugar (sweeten)
+import Test.Mutagen (Arbitrary, Fragmentable, Lazy, Mutable)
+import Test.Mutagen.TH.Arbitrary (deriveArbitrary)
+import Test.Mutagen.TH.Fragmentable (deriveFragmentable)
+import Test.Mutagen.TH.Lazy (deriveLazy)
+import Test.Mutagen.TH.Mutable (deriveMutable)
+import Test.Mutagen.TH.Util (mutagenError)
 
--- | Derivation options
-data THOpts
-  = THOpts
-  { th_ignore :: [Name] -- used for Arbitrary and Mutable
-  , th_def :: Maybe Name -- used for Mutable
+{-------------------------------------------------------------------------------
+-- * Derivation options
+-------------------------------------------------------------------------------}
+
+-- | Options for deriving instances using Template Haskell.
+data THOptions
+  = THOptions
+  { optIgnore :: [Name]
+  -- ^ Ignore certain constructors during the derivation process.
+  , optDefault :: Maybe Name
+  -- ^ Default value for 'Test.Mutagen.Mutation.def' when deriving 'Mutable'.
   }
 
-defaultTHOpts :: THOpts
-defaultTHOpts =
-  THOpts
-    { th_ignore = []
-    , th_def = Nothing
+-- | Default derivation options.
+defaultTHOptions :: THOptions
+defaultTHOptions =
+  THOptions
+    { optIgnore = []
+    , optDefault = Nothing
     }
 
-----------------------------------------
+{-------------------------------------------------------------------------------
+-- * Derivation dispatchers
+-------------------------------------------------------------------------------}
 
--- | TH dispatchers
+-- | Derive all supported type class instances for a given data type.
 deriveAll :: Name -> Q [Dec]
-deriveAll ty = do
-  arb <- deriveInstance ''Arbitrary ty
-  mut <- deriveInstance ''Mutable ty
-  laz <- deriveInstance ''Lazy ty
-  fra <- deriveInstance ''Fragmentable ty
-  return (arb <> mut <> laz <> fra)
+deriveAll typeName =
+  concatMapM
+    (deriveInstance typeName)
+    [ ''Arbitrary
+    , ''Mutable
+    , ''Lazy
+    , ''Fragmentable
+    ]
 
+-- | Derive a single instance for a given data type and type class.
 deriveInstance :: Name -> Name -> Q [Dec]
-deriveInstance = deriveInstanceWithOpts defaultTHOpts
+deriveInstance = deriveInstanceWithOptions defaultTHOptions
 
-deriveInstanceWithOpts :: THOpts -> Name -> Name -> Q [Dec]
-deriveInstanceWithOpts opts name ty
-  | name == ''Arbitrary =
-      sweeten <$> deriveArbitrary ty (th_ignore opts)
-  | name == ''Mutable =
-      sweeten <$> deriveMutable ty (th_ignore opts) (th_def opts)
-  | name == ''Lazy =
-      sweeten <$> deriveLazy ty (th_ignore opts)
-  | name == ''Fragmentable =
-      sweeten <$> deriveFragmentable ty (th_ignore opts)
+-- | Derive a single custom instance for a given data type and type class.
+deriveInstanceWithOptions :: THOptions -> Name -> Name -> Q [Dec]
+deriveInstanceWithOptions opts typeName className
+  | className == ''Arbitrary =
+      sweeten <$> deriveArbitrary typeName (optIgnore opts)
+  | className == ''Mutable =
+      sweeten <$> deriveMutable typeName (optIgnore opts) (optDefault opts)
+  | className == ''Lazy =
+      sweeten <$> deriveLazy typeName (optIgnore opts)
+  | className == ''Fragmentable =
+      sweeten <$> deriveFragmentable typeName (optIgnore opts)
   | otherwise =
-      mutagenError "type class not supported" [name]
+      mutagenError "type class not supported" [className]
