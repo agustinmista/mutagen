@@ -34,10 +34,29 @@
         "type": "github"
       }
     },
+    "pqueue": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1760207405,
+        "narHash": "sha256-e0a5ULT2HPgkcWLFTTpBfgbbhoBRLMsMLh52knJy2HE=",
+        "owner": "lspitzner",
+        "repo": "pqueue",
+        "rev": "91f1a36271e16ddc4c4777c66a6725e751811068",
+        "type": "github"
+      },
+      "original": {
+        "owner": "lspitzner",
+        "repo": "pqueue",
+        "rev": "91f1a36271e16ddc4c4777c66a6725e751811068",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "pqueue": "pqueue",
+        "th-desugar": "th-desugar"
       }
     },
     "systems": {
@@ -52,6 +71,23 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "th-desugar": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1759189316,
+        "narHash": "sha256-Yweb7966h9hSN4ALNncyfS5QfAoSDBm4AozXqMQ4+3Q=",
+        "owner": "goldfirere",
+        "repo": "th-desugar",
+        "rev": "1c9e884f80d6e8efb5109cb85bb889a12bc9ed8d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "goldfirere",
+        "repo": "th-desugar",
+        "rev": "1c9e884f80d6e8efb5109cb85bb889a12bc9ed8d",
         "type": "github"
       }
     }
