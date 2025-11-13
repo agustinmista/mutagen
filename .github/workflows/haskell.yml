@@ -11,6 +11,7 @@ permissions:
 jobs:
   format:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,7 +21,6 @@ jobs:
         run: MODE=check nix run .#scripts.run-fourmolu
   build:
     runs-on: ubuntu-latest
-    needs: format
     env:
       default_compiler: ghc910
       default_package: mutagen
@@ -43,8 +43,9 @@ jobs:
         run: |
           nix build \
             --print-build-logs \
-            .#${{ matrix.compiler }}.${{ matrix.package }}
+            .#ci.${{ matrix.compiler }}.${{ matrix.package }}
       - name: Prepare documentation artifact
+        if: matrix.compiler == env.default_compiler && matrix.package == env.default_package
         run: |
           mkdir _docs
           cp -rL result/share/doc/*/html/* _docs

@@ -6,7 +6,6 @@ module Test.Mutagen.TH.Mutable
 where
 
 import Control.Monad (forM, guard)
-import Data.Bool (bool)
 import Data.List (sortOn)
 import Language.Haskell.TH
   ( Lit (..)
@@ -50,11 +49,9 @@ import Test.Mutagen.TH.Util
   , dConFieldsTypes
   , dConName
   , dTyVarBndrName
-  , dump
   , mkConDExp
   , mkListDExp
   , mutagenError
-  , mutagenLog
   , reifyTypeDef
   )
 
@@ -65,10 +62,6 @@ import Test.Mutagen.TH.Util
 -- | Derive a 'Mutable' instance for the given data type.
 deriveMutable :: Name -> [Name] -> Maybe Name -> Q [DDec]
 deriveMutable typeName ignoredCons mbDef = do
-  mutagenLog
-    $ "deriving Lazy instance for "
-      <> dump typeName
-      <> bool (" (ignoring: " <> dump ignoredCons <> ")") "" (null ignoredCons)
   -- Reify the type definition
   (dtvbs, dcons) <- reifyTypeDef typeName
   -- Apply the context type variables to the type name to get 'Type'-kinded

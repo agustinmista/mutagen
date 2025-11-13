@@ -22,7 +22,13 @@ source-repository head
   location: https://github.com/agustinmista/mutagen
 
 flag MUTAGEN_TH_DEBUG
+  description: Enable debug messages for Template Haskell derivations.
   default: False
+  manual: True
+flag MUTAGEN_PLUGIN_DEBUG
+  description: Enable debug messages for the Tracer plugin.
+  default: False
+  manual: True
 
 library
   exposed-modules:
@@ -83,6 +89,8 @@ library
     Haskell2010
   if flag(MUTAGEN_TH_DEBUG)
     cpp-options: -DMUTAGEN_TH_DEBUG
+  if flag(MUTAGEN_PLUGIN_DEBUG)
+    cpp-options: -DMUTAGEN_PLUGIN_DEBUG
 
 test-suite test-re
   type:

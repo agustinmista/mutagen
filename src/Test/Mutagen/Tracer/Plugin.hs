@@ -134,8 +134,16 @@ annotateTopLevel flags annotations match =
 ----------------------------------------
 
 -- | Helpers
+
+{- FOURMOLU_DISABLE -}
 message :: String -> Hsc ()
-message str = liftIO $ putStrLn $ "[MUTAGEN] " <> str
+message _str =
+#ifdef MUTAGEN_TRACER_DEBUG
+  liftIO $ putStrLn $ "[MUTAGEN] " <> str
+#else
+  liftIO $ return ()
+#endif
+{- FOURMOLU_ENABLE -}
 
 instrumentedMessage :: DynFlags -> String -> Int -> SrcSpan -> Hsc ()
 instrumentedMessage flags reason n loc = do

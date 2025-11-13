@@ -7,7 +7,6 @@ module Test.Mutagen.TH.Fragmentable
 where
 
 import Control.Monad (forM)
-import Data.Bool (bool)
 import Language.Haskell.TH
   ( Name
   , Q
@@ -34,8 +33,6 @@ import Test.Mutagen.TH.Util
   , createDPat
   , dConName
   , dTyVarBndrName
-  , dump
-  , mutagenLog
   , reifyTypeDef
   )
 
@@ -46,10 +43,6 @@ import Test.Mutagen.TH.Util
 -- | Derive a 'Fragmentable' instance for the given data type.
 deriveFragmentable :: Name -> [Name] -> Q [DDec]
 deriveFragmentable typeName ignoredCons = do
-  mutagenLog
-    $ "deriving Fragmentable instance for "
-      <> dump typeName
-      <> bool (" (ignoring: " <> dump ignoredCons <> ")") "" (null ignoredCons)
   -- Reify the type definition
   (dtvbs, dcons) <- reifyTypeDef typeName
   -- Apply the context type variables to the type name to get 'Type'-kinded

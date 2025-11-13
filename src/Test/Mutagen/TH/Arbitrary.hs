@@ -7,7 +7,6 @@ module Test.Mutagen.TH.Arbitrary
 where
 
 import Control.Monad.Extra (ifM)
-import Data.Bool (bool)
 import Data.List (partition)
 import Language.Haskell.TH
   ( Lit (..)
@@ -47,11 +46,9 @@ import Test.Mutagen.TH.Util
   , dConFieldsTypes
   , dConName
   , dTyVarBndrName
-  , dump
   , isMaybeOf
   , mkApplicativeDExp
   , mkListDExp
-  , mutagenLog
   , reifyTypeDef
   , (.==.)
   )
@@ -63,10 +60,6 @@ import Test.Mutagen.TH.Util
 -- | Derive an 'Arbitrary' instance for the given data type.
 deriveArbitrary :: Name -> [Name] -> Q [DDec]
 deriveArbitrary typeName ignoredCons = do
-  mutagenLog
-    $ "deriving Lazy instance for "
-      <> dump typeName
-      <> bool (" (ignoring: " <> dump ignoredCons <> ")") "" (null ignoredCons)
   -- Reify the type definition
   (dtvbs, dcons) <- reifyTypeDef typeName
   -- Apply the context type variables to the type name to get 'Type'-kinded

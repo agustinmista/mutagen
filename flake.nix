@@ -31,6 +31,7 @@
           # Local packages to build
           packages.mutagen = {
             src = ./.;
+            # flags = [ "MUTAGEN_TH_DEBUG" "MUTAGEN_TRACER_DEBUG" ];
             overrides = { inherit (self.inputs) pqueue th-desugar; };
           };
           # Helper scripts to be included in all dev shells

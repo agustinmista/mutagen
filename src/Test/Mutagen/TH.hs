@@ -48,7 +48,7 @@ import Test.Mutagen.TH.Arbitrary (deriveArbitrary)
 import Test.Mutagen.TH.Fragmentable (deriveFragmentable)
 import Test.Mutagen.TH.Lazy (deriveLazy)
 import Test.Mutagen.TH.Mutable (deriveMutable)
-import Test.Mutagen.TH.Util (mutagenError)
+import Test.Mutagen.TH.Util (dump, mutagenError, mutagenLog)
 
 {-------------------------------------------------------------------------------
 -- * Derivation options
@@ -92,14 +92,30 @@ deriveInstance = deriveInstanceWithOptions defaultTHOptions
 
 -- | Derive a single custom instance for a given data type and type class.
 deriveInstanceWithOptions :: THOptions -> Name -> Name -> Q [Dec]
-deriveInstanceWithOptions opts typeName className
-  | className == ''Arbitrary =
-      sweeten <$> deriveArbitrary typeName (optIgnore opts)
-  | className == ''Mutable =
-      sweeten <$> deriveMutable typeName (optIgnore opts) (optDefault opts)
-  | className == ''Lazy =
-      sweeten <$> deriveLazy typeName (optIgnore opts)
-  | className == ''Fragmentable =
-      sweeten <$> deriveFragmentable typeName (optIgnore opts)
-  | otherwise =
-      mutagenError "type class not supported" [className]
+deriveInstanceWithOptions opts typeName className = do
+  mutagenLog
+    $ "deriving instance "
+      <> dump className
+      <> " for "
+      <> dump typeName
+      <> ignoringString
+  ins <- sweeten <$> derive
+  mutagenLog $ "derived instance: " <> dump ins
+  return ins
+  where
+    ignoringString
+      | null (optIgnore opts) =
+          ""
+      | otherwise =
+          " (ignoring: " <> dump (optIgnore opts) <> ")"
+    derive
+      | className == ''Arbitrary =
+          deriveArbitrary typeName (optIgnore opts)
+      | className == ''Mutable =
+          deriveMutable typeName (optIgnore opts) (optDefault opts)
+      | className == ''Lazy =
+          deriveLazy typeName (optIgnore opts)
+      | className == ''Fragmentable =
+          deriveFragmentable typeName (optIgnore opts)
+      | otherwise =
+          mutagenError "type class not supported" [className]

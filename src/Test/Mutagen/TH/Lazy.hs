@@ -6,7 +6,6 @@ module Test.Mutagen.TH.Lazy
   )
 where
 
-import Data.Bool (bool)
 import Language.Haskell.TH
   ( Lit (..)
   , Name
@@ -32,9 +31,7 @@ import Test.Mutagen.TH.Util
   , createDPat
   , dConName
   , dTyVarBndrName
-  , dump
   , mkConDExp
-  , mutagenLog
   , reifyTypeDef
   )
 
@@ -45,10 +42,6 @@ import Test.Mutagen.TH.Util
 -- | Derive a 'Lazy' instance for the given data type.
 deriveLazy :: Name -> [Name] -> Q [DDec]
 deriveLazy typeName ignoredCons = do
-  mutagenLog
-    $ "deriving Lazy instance for "
-      <> dump typeName
-      <> bool (" (ignoring: " <> dump ignoredCons <> ")") "" (null ignoredCons)
   -- Reify the type definition
   (dtvbs, dcons) <- reifyTypeDef typeName
   -- Apply the context type variables to the type name to get 'Type'-kinded

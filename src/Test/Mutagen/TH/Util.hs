@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
@@ -40,7 +41,7 @@ module Test.Mutagen.TH.Util
 where
 
 import Control.Exception (bracket_)
-import Control.Monad (forM_, replicateM)
+import Control.Monad (replicateM)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Function (on)
 import Language.Haskell.TH
@@ -212,22 +213,30 @@ withColor color io = do
     (setSGR [Reset])
     io
 
+{- FOURMOLU_DISABLE -}
 -- | Log a message with the [MUTAGEN] prefix.
 mutagenLog :: (MonadIO m) => String -> m ()
-mutagenLog str =
-  liftIO $ putStrLn $ "[MUTAGEN] " <> str
+mutagenLog _str =
+#ifdef MUTAGEN_TH_DEBUG
+  liftIO $ putStrLn $ "[MUTAGEN] " <> _str
+#else
+  liftIO $ return ()
+#endif
+{- FOURMOLU_ENABLE -}
 
 -- | Report a derivation error and die gracefully.
 mutagenError :: (Show a) => String -> [a] -> Q b
 mutagenError msg inputs = runIO $ do
-  withColor Red $ do
-    mutagenLog "an error happened:"
-    mutagenLog msg
-    mutagenLog "input was:"
-    forM_ inputs $ \i -> do
-      mapM_ (liftIO . putStrLn) (lines (show i))
+  let report =
+        unlines
+          $ [ "an error occurred during a MUTAGEN derivation:"
+            , msg
+            , "inputs were:"
+            ]
+            <> concatMap (lines . show) inputs
+  withColor Red (mutagenLog report)
   -- Finally, die
-  error "MUTAGEN derivation error"
+  error report
 
 -- | Blow up on unsupported inputs.
 unsupported :: (Show a) => Name -> a -> b
