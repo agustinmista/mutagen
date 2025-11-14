@@ -42,11 +42,13 @@ library
     Test.Mutagen.Shell
     Test.Mutagen.TH
     Test.Mutagen.Tracer
+    Test.Mutagen.Tracer.Annotation
     Test.Mutagen.Tracer.Plugin
     Test.Mutagen.Tracer.Trace
     Test.Mutagen.Tracer.TraceLogger
     Test.Mutagen.Tracer.Tree
     Test.Mutagen.Tracer.Bitmap
+    Test.Mutagen.Tracer.Metadata
   other-modules:
     Test.Mutagen.Test
     Test.Mutagen.Test.Config
@@ -65,22 +67,25 @@ library
     src
   build-depends:
       base >=4.18 && <5
+    , aeson
+    , ansi-terminal
+    , array
     , containers
-    , random
-    , QuickCheck
-    , pqueue
+    , directory
     , extra
-    , time
+    , filepath
+    , ghc
+    , mtl
+    , pqueue
     , pretty-simple
     , pretty-tree
-    , ansi-terminal
     , process
-    , ghc
+    , QuickCheck
+    , random
     , syb
-    , array
     , template-haskell
     , th-desugar
-    , ansi-terminal
+    , time
   ghc-options:
     -Wall -Werror
   default-extensions:

@@ -44,7 +44,7 @@ dumpTraceTreeLog (TraceTreeLog ref) = readIORef ref >>= drawTraceTree >>= putStr
 ----------------------------------------
 -- Trace trees implemented using "rose maps"
 
-newtype TraceTree = TraceTree (Map TraceEntry TraceTree)
+newtype TraceTree = TraceTree (Map TraceNode TraceTree)
 
 emptyTraceTree :: TraceTree
 emptyTraceTree = TraceTree mempty

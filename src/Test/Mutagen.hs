@@ -1,6 +1,5 @@
 module Test.Mutagen
-  ( TraceAnn (TRACE)
-  , module Test.Mutagen.Property
+  ( module Test.Mutagen.Property
   , module Test.Mutagen.Mutation
   , module Test.Mutagen.Mutant
   , module Test.Mutagen.Exception
@@ -8,6 +7,7 @@ module Test.Mutagen
   , module Test.Mutagen.Fragment
   , module Test.Mutagen.Shell
   , module Test.Mutagen.Test
+  , module Test.Mutagen.Tracer.Annotation
   , module Test.QuickCheck.Gen
   , module Test.QuickCheck.Arbitrary
   )
@@ -21,6 +21,6 @@ import Test.Mutagen.Mutation
 import Test.Mutagen.Property
 import Test.Mutagen.Shell
 import Test.Mutagen.Test
-import Test.Mutagen.Tracer (TraceAnn (TRACE))
+import Test.Mutagen.Tracer.Annotation
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Gen

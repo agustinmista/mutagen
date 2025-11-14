@@ -202,7 +202,7 @@ runTestCase_generic register st parent args = do
 --   * The trace in the program it traversed
 --   * The the positions of the evaluated expressions of the input
 
-execArgsRunner :: State log -> Args -> IO (Test, [TraceEntry], Maybe [Pos])
+execArgsRunner :: State log -> Args -> IO (Test, [TraceNode], Maybe [Pos])
 execArgsRunner st args
   | stUseLazyPrunning st = do
       resetPosRef

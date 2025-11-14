@@ -1,40 +1,61 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+-- | Tracing executed AST nodes via some
+module Test.Mutagen.Tracer.Trace
+  ( -- * Tracing
+    TraceNode
+  , __trace__
+  , Trace (..)
+  , addTraceNode
+  , resetTraceRef
+  , readTraceRef
+  , withTrace
+  )
+where
 
-module Test.Mutagen.Tracer.Trace where
+import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
+import System.IO.Unsafe (unsafePerformIO)
 
-import Data.IORef
-import System.IO.Unsafe
+{-------------------------------------------------------------------------------
+-- * Tracing
+-------------------------------------------------------------------------------}
 
-----------------------------------------
+-- | AST node identifiers
+type TraceNode = Int
 
--- | Traces
+-- | Trace the evaluation of a given 'TraceNode'.
+--
+-- This function is intended to be used by the GHC plugin to
+__trace__ :: TraceNode -> a -> a
+__trace__ n expr = unsafePerformIO (addTraceNode n >> return expr)
+{-# INLINE __trace__ #-}
 
--- Trace entries: module name and a uid within that module
-type TraceEntry = Int
-
-newtype Trace = Trace {unTrace :: [TraceEntry]}
+-- | A dynamic trace keeping track of executed trace nodes
+newtype Trace = Trace {unTrace :: [TraceNode]}
   deriving (Show)
 
--- The dynamic traces are stored into this IORef
-{-# NOINLINE traceRef #-}
-traceRef :: IORef Trace
-traceRef = unsafePerformIO (newIORef (Trace []))
+-- | Global 'IORef' holding the current execution trace
+globalTraceRef :: IORef Trace
+globalTraceRef = unsafePerformIO (newIORef (Trace []))
+{-# NOINLINE globalTraceRef #-}
 
--- Add a new entry to the current trace
-addTraceEntry :: Int -> IO ()
-addTraceEntry n = modifyIORef' traceRef (\(Trace entries) -> Trace (n : entries))
+-- | Add a new entry to the current global trace
+addTraceNode :: Int -> IO ()
+addTraceNode n =
+  atomicModifyIORef' globalTraceRef $ \(Trace entries) ->
+    (Trace (n : entries), ())
 
--- Reset traces
+-- | Reset the global trace
 resetTraceRef :: IO ()
-resetTraceRef = modifyIORef' traceRef (const (Trace []))
+resetTraceRef =
+  atomicModifyIORef' globalTraceRef $ \_ ->
+    (Trace [], ())
 
--- Read traces
+-- | Read the current global trace
 readTraceRef :: IO Trace
 readTraceRef = do
-  Trace entries <- readIORef traceRef
+  Trace entries <- readIORef globalTraceRef
   return (Trace (reverse entries))
 
--- Run a computation and obtain its trace
+-- | Run a computation and obtain its trace
 withTrace :: IO a -> IO (a, Trace)
 withTrace io = do
   resetTraceRef

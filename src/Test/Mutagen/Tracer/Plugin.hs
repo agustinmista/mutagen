@@ -2,14 +2,35 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE PatternSynonyms #-}
 
+-- | GHC source plugin that instruments Haskell code to include tracing calls.
+--
+-- You can enable this plugin in different ways:
+--
+-- * Globally, by passing the @-fplugin@ flag to GHC:
+--
+-- @
+--    -fplugin=Test.Mutagen.Tracer.Plugin
+-- @
+--
+-- * Per module, by adding the following pragma to the top of the module:
+--
+-- @
+--  {-# OPTIONS_GHC -fplugin=Test.Mutagen.Tracer.Plugin #-}
+-- @
+--
+-- * Per function, by adding the TRACE annotation pragma to the function:
+--
+-- @
+--  {-# ANN myFunction TRACE #-}
+-- @
 module Test.Mutagen.Tracer.Plugin
-  ( __trace__
-  , TraceAnn (TRACE)
-  , plugin
+  ( -- * GHC Plugin
+    plugin
   )
 where
 
 import Control.Monad
+import Control.Monad.Writer (MonadIO, WriterT, lift, runWriterT, tell)
 import Data.Generics (Data, everywhereM, listify, mkM)
 import Data.IORef
 import GHC.Hs
@@ -17,154 +38,195 @@ import GHC.Plugins hiding ((<>))
 import GHC.Types.Name.Occurrence as Name
 import GHC.Types.SourceText
 import System.IO.Unsafe (unsafePerformIO)
+import Test.Mutagen.Tracer.Metadata
+  ( ModuleMetadata (..)
+  , NodeLocation (..)
+  , NodeMetadata (..)
+  , NodeType (..)
+  , mkSingleModuleTracerMetadata
+  , saveTracerMetadata
+  , tracerMetadataDir
+  )
 import Test.Mutagen.Tracer.Trace
 
-----------------------------------------
+{-------------------------------------------------------------------------------
+-- * GHC Plugin
+-------------------------------------------------------------------------------}
 
--- | Tracing primitive
-__trace__ :: Int -> a -> a
-__trace__ n expr =
-  unsafePerformIO $ do
-    addTraceEntry n
-    return expr
-{-# INLINE __trace__ #-}
-
-----------------------------------------
-
--- | Source plugin
-data TraceAnn = TRACE
-  deriving (Data)
-
--- IORefs
-
-{-# NOINLINE uid #-}
-uid :: IORef Int
-uid = unsafePerformIO (newIORef 0)
-
-newUID :: Hsc Int
-newUID = liftIO $ atomicModifyIORef uid (\n -> (n + 1, n + 1))
-
--- The top-level plugin
+-- | Top-level plugin
 plugin :: Plugin
-plugin = defaultPlugin{parsedResultAction = tracePlugin}
+plugin = defaultPlugin{parsedResultAction = action}
+  where
+    action cli summary parsed = do
+      let ParsedResult source msgs = parsed
+      let L loc modAST = hpm_module source
+      flags <- getDynFlags
+      let modName = moduleNameString (moduleName (ms_mod summary))
+      mutagenLog $ "Plugin started on module " <> modName
+      (modAST', modMetadata) <- instrumentModule cli flags modAST
+      let tracerMetadata = mkSingleModuleTracerMetadata modName modMetadata
+      liftIO $ saveTracerMetadata tracerMetadata tracerMetadataDir
+      mutagenLog "Done"
+      return (ParsedResult (source{hpm_module = L loc modAST'}) msgs)
 
--- The plugin logic
-tracePlugin :: [CommandLineOption] -> ModSummary -> ParsedResult -> Hsc ParsedResult
-tracePlugin _cli summary (ParsedResult source msgs) = do
-  -- Initialize some stuff
-  flags <- getDynFlags
-  let modName = moduleName (ms_mod summary)
-  -- Apply some transformations over the source code
-  message $ "plugin started on module " <> showPpr flags modName
-  let L loc hsMod = hpm_module source
-  -- Check if there are TRACE annotations in the code.
-  -- If not, transform the whole module.
-  case extractAnn <$> listify (isAnn flags) hsMod of
-    [] -> do
-      message "run mode: full module"
-      let transform =
-            addTraceImport flags modName
-              >=> everywhereM (mkM (annotateGRHS flags))
-              >=> everywhereM (mkM (annotateIfs flags))
-      hsMod' <- transform hsMod
-      n <- liftIO $ readIORef uid
-      liftIO $ writeFile ".tracer" (show n)
-      message $ "generated " <> show n <> " trace nodes"
-      message "done"
-      return (ParsedResult (source{hpm_module = L loc hsMod'}) msgs)
-    annotations -> do
-      message $ "run mode: trace only " <> showPpr flags annotations
-      let transform =
-            addTraceImport flags modName
-              >=> everywhereM (mkM (annotateTopLevel flags annotations))
-      hsMod' <- transform hsMod
-      n <- liftIO $ readIORef uid
-      liftIO $ writeFile ".tracer" (show n)
-      message $ "generated " <> show n <> " trace nodes"
-      message "done"
-      return (ParsedResult (source{hpm_module = L loc hsMod'}) msgs)
+{-------------------------------------------------------------------------------
+-- * Instrumentation
+-------------------------------------------------------------------------------}
 
--- Include an import to this module, so __trace__ is always in scope
-addTraceImport :: DynFlags -> ModuleName -> HsModule GhcPs -> Hsc (HsModule GhcPs)
-addTraceImport flags modName hsMod = do
-  message $ "adding tracer import to module " <> showPpr flags (moduleNameFS modName)
-  let theNewImport = noLocA (simpleImportDecl tracerModuleName)
-  let hsMod' = hsMod{hsmodImports = theNewImport : hsmodImports hsMod}
-  return hsMod'
+-- | Instrument a parsed module
+instrumentModule
+  :: [CommandLineOption]
+  -> DynFlags
+  -> HsModule GhcPs
+  -> Hsc (HsModule GhcPs, ModuleMetadata)
+instrumentModule _cli flags modAST = do
+  (modAST', nodes) <- runWriterT
+    $ case traceAnnotations of
+      [] -> do
+        mutagenLog "Run mode: full module"
+        instrumentEntireModule modAST
+      bindings -> do
+        mutagenLog $ "Run mode: trace only " <> showPpr flags bindings
+        instrumentTopLevelBindings bindings modAST
+  let metadata = ModuleMetadata nodes
+  return (modAST', metadata)
+  where
+    -- Extract all the TRACE annotations from this module.
+    traceAnnotations = extractAnn <$> listify (isAnn flags) modAST
 
--- Annotate every RHS with a tracer
--- They come after: function clauses, case statements, multi-way ifs, etc
-annotateGRHS :: DynFlags -> GRHS GhcPs (LHsExpr GhcPs) -> Hsc (GRHS GhcPs (LHsExpr GhcPs))
-annotateGRHS flags (GRHS ext guards body) = do
-  nth <- newUID
-  instrumentedMessage flags "rhs" nth (getLocA body)
-  let body' = wrapTracer nth body
-  return (GRHS ext guards body')
+    -- Add an import to the module exporting __trace__, so it's always in scope
+    addTraceImport
+      :: HsModule GhcPs
+      -> WriterT [NodeMetadata] Hsc (HsModule GhcPs)
+    addTraceImport m = do
+      mutagenLog $ "Adding module import for" <> showPpr flags tracerModuleName
+      let tracerModuleImport = noLocA (simpleImportDecl tracerModuleName)
+      return m{hsmodImports = tracerModuleImport : hsmodImports m}
 
--- Annotate each branch of an if-then-else expression with a tracer
-annotateIfs :: DynFlags -> HsExpr GhcPs -> Hsc (HsExpr GhcPs)
-annotateIfs flags expr =
-  case expr of
-    HsIf ext cond th el -> do
-      -- then branch
-      nth <- newUID
-      instrumentedMessage flags "then branch" nth (getLocA th)
-      let th' = wrapTracer nth th
-      -- else branch
-      nel <- newUID
-      instrumentedMessage flags "else branch" nel (getLocA el)
-      let el' = wrapTracer nel el
-      -- wrap it up again
-      return (HsIf ext cond th' el')
-    x -> return x
+    -- Instrument and entire module
+    instrumentEntireModule
+      :: HsModule GhcPs
+      -> WriterT [NodeMetadata] Hsc (HsModule GhcPs)
+    instrumentEntireModule =
+      addTraceImport
+        >=> instrumentEverywhere
 
--- Annotate top level functions having TRACE annotation pragmas
-annotateTopLevel :: DynFlags -> [RdrName] -> Match GhcPs (LHsExpr GhcPs) -> Hsc (Match GhcPs (LHsExpr GhcPs))
-annotateTopLevel flags annotations match =
-  case match of
-    Match m_x m_ctx m_ps m_bodies
-      | isFunRhs m_ctx && unLoc (mc_fun m_ctx) `elem` annotations -> do
-          let transform =
-                everywhereM (mkM (annotateGRHS flags))
-                  >=> everywhereM (mkM (annotateIfs flags))
-          m_bodies' <- transform m_bodies
-          return (Match m_x m_ctx m_ps m_bodies')
-    x -> return x
+    -- Instrument only specific bindings
+    instrumentTopLevelBindings
+      :: [RdrName]
+      -> HsModule GhcPs
+      -> WriterT [NodeMetadata] Hsc (HsModule GhcPs)
+    instrumentTopLevelBindings bindings =
+      addTraceImport
+        >=> everywhereM (mkM (instrumentTopLevelBinding bindings))
 
-----------------------------------------
+    -- Instrument top-level functions having TRACE annotation pragmas
+    instrumentTopLevelBinding
+      :: [RdrName]
+      -> Match GhcPs (LHsExpr GhcPs)
+      -> WriterT [NodeMetadata] Hsc (Match GhcPs (LHsExpr GhcPs))
+    instrumentTopLevelBinding annotations match =
+      case match of
+        Match m_x m_ctx m_ps m_bodies
+          | isFunRhs m_ctx && unLoc (mc_fun m_ctx) `elem` annotations -> do
+              m_bodies' <- instrumentEverywhere m_bodies
+              return (Match m_x m_ctx m_ps m_bodies')
+        x -> return x
 
--- | Helpers
+    -- Recursively instrument every sub-expression
+    instrumentEverywhere
+      :: (Data a)
+      => a
+      -> WriterT [NodeMetadata] Hsc a
+    instrumentEverywhere =
+      everywhereM (mkM instrumentGRHSs)
+        >=> everywhereM (mkM instrumentIFs)
+
+    -- Instrument every RHS with a tracer node.
+    -- These come after function clauses, case statements, multi-way ifs, etc.
+    instrumentGRHSs
+      :: GRHS GhcPs (LHsExpr GhcPs)
+      -> WriterT [NodeMetadata] Hsc (GRHS GhcPs (LHsExpr GhcPs))
+    instrumentGRHSs (GRHS ext guards rhs) = do
+      rhsNode <- liftIO freshTraceNode
+      let rhsLoc = getLocA rhs
+      tell [NodeMetadata rhsNode GRHSNode (srcSpanToNodeLocation rhsLoc)]
+      logInstrumentedNode "RHS" rhsNode rhsLoc
+      let rhs' = wrapTracer rhsNode rhs
+      return (GRHS ext guards rhs')
+
+    -- Instrument each branch of an if-then-else expression with a tracer
+    instrumentIFs
+      :: HsExpr GhcPs
+      -> WriterT [NodeMetadata] Hsc (HsExpr GhcPs)
+    instrumentIFs expr =
+      case expr of
+        HsIf ext cond th el -> do
+          -- then branch
+          thNode <- liftIO freshTraceNode
+          let thLoc = getLocA th
+          tell [NodeMetadata thNode ThenNode (srcSpanToNodeLocation thLoc)]
+          logInstrumentedNode "then branch" thNode thLoc
+          let th' = wrapTracer thNode th
+          -- else branch
+          elNode <- liftIO freshTraceNode
+          let elLoc = getLocA el
+          tell [NodeMetadata elNode ElseNode (srcSpanToNodeLocation elLoc)]
+          logInstrumentedNode "else branch" elNode elLoc
+          let el' = wrapTracer elNode el
+          -- wrap it up again
+          return (HsIf ext cond th' el')
+        x -> return x
+
+    -- Log an instrumentation message
+    logInstrumentedNode
+      :: String
+      -> TraceNode
+      -> SrcSpan
+      -> WriterT [NodeMetadata] Hsc ()
+    logInstrumentedNode reason node loc = do
+      lift
+        $ mutagenLog
+        $ "Inoculating tracer #"
+          <> show node
+          <> " on "
+          <> reason
+          <> " at "
+          <> showPpr flags loc
+
+{-------------------------------------------------------------------------------
+-- * Helpers
+-------------------------------------------------------------------------------}
+
+-- ** Trace node generation
+
+-- | Global counter for trace nodes
+traceNodeCounter :: IORef TraceNode
+traceNodeCounter = unsafePerformIO (newIORef 0)
+{-# NOINLINE traceNodeCounter #-}
+
+-- | Generate a fresh trace node
+freshTraceNode :: IO TraceNode
+freshTraceNode = atomicModifyIORef' traceNodeCounter $ \n ->
+  (n + 1, n + 1)
+{-# INLINE freshTraceNode #-}
+
+-- ** Logging
 
 {- FOURMOLU_DISABLE -}
-message :: String -> Hsc ()
-message _str =
-#ifdef MUTAGEN_TRACER_DEBUG
-  liftIO $ putStrLn $ "[MUTAGEN] " <> str
+-- | Print a message if debugging is enabled
+mutagenLog :: MonadIO m => String -> m ()
+mutagenLog _str =
+#ifdef MUTAGEN_PLUGIN_DEBUG
+  liftIO $ putStrLn $ "[MUTAGEN] " <> _str
 #else
   liftIO $ return ()
 #endif
 {- FOURMOLU_ENABLE -}
 
-instrumentedMessage :: DynFlags -> String -> Int -> SrcSpan -> Hsc ()
-instrumentedMessage flags reason n loc = do
-  message
-    $ "inoculating tracer #"
-      <> show n
-      <> " on "
-      <> reason
-      <> " at "
-      <> showPpr flags loc
+-- ** Annotation pragmas
 
--- Wrap an expression with a tracer
-wrapTracer :: Int -> LHsExpr GhcPs -> LHsExpr GhcPs
-wrapTracer n expr =
-  var tracerFunName
-    `app` numLit n
-    `app` paren expr
-
--- Check whether an annotation pragma is of the shape:
--- {-# ANN ident TRACE #-}
-
+-- | Pattern for matching against annotation pragmas
 pattern HsAnn :: RdrName -> RdrName -> AnnDecl GhcPs
 pattern HsAnn lhs rhs <-
   HsAnnotation
@@ -172,43 +234,70 @@ pattern HsAnn lhs rhs <-
     (ValueAnnProvenance (L _ lhs))
     (L _ (HsVar _ (L _ rhs)))
 
+-- | Check whether an annotation pragma is of the shape:
+-- {-# ANN ident TRACE #-}
 isAnn :: DynFlags -> AnnDecl GhcPs -> Bool
 isAnn flags (HsAnn _ rhs) = showPpr flags rhs == showPpr flags tracerAnnName
 isAnn _ _ = False
 
+-- | Extract the target of an annotation pragma
 extractAnn :: AnnDecl GhcPs -> RdrName
 extractAnn (HsAnn target _) = target
 extractAnn _ = error "this should not happen"
 
--- Is this a patter matching an argument of a function binding?
+-- ** Source locations
+
+-- | Turn a generic 'SrcSpan' into something more amenable to serialization
+srcSpanToNodeLocation :: SrcSpan -> Maybe NodeLocation
+srcSpanToNodeLocation loc =
+  case loc of
+    RealSrcSpan realLoc _ ->
+      Just
+        $ NodeLocation
+          { filePath = unpackFS (srcSpanFile realLoc)
+          , startLine = srcSpanStartLine realLoc
+          , startCol = srcSpanStartCol realLoc
+          , endLine = srcSpanEndLine realLoc
+          , endCol = srcSpanEndCol realLoc
+          }
+    _ -> Nothing
+
+-- ** Predicates
+
+-- | Is this a patter matching an argument of a function binding?
 isFunRhs :: HsMatchContext id -> Bool
 isFunRhs (FunRhs{}) = True
 isFunRhs _ = False
 
-----------------------------------------
+-- ** Constants
 
--- | Constant names
+-- | Name of the tracing function
 tracerFunName :: RdrName
 tracerFunName = mkRdrName "__trace__"
 
+-- | Name of the tracing annotation
 tracerAnnName :: RdrName
 tracerAnnName = mkRdrName "TRACE"
 
+-- | Module name of the tracing module
 tracerModuleName :: ModuleName
-tracerModuleName = mkModuleName "Test.Mutagen.Tracer.Plugin"
+tracerModuleName = mkModuleName "Test.Mutagen.Tracer.Trace"
 
-----------------------------------------
+-- ** AST Builders
 
--- | Builders
+-- | Make an unqualified 'RdrName' from a string
 mkRdrName :: String -> RdrName
 mkRdrName str = mkUnqual Name.varName (mkFastString str)
 
+-- | Build a variable expression from a 'RdrName'
 var :: RdrName -> LHsExpr GhcPs
 var v = noLocA (HsVar noExtField (noLocA v))
 
+-- | Wrap an expression in parentheses
 paren :: LHsExpr GhcPs -> LHsExpr GhcPs
 paren x = noLocA (gHsPar x)
 
+-- | Apply one expression to another
 app :: LHsExpr GhcPs -> LHsExpr GhcPs -> LHsExpr GhcPs
 #if MIN_VERSION_ghc(9,10,1)
 app x y = noLocA (HsApp noExtField x y)
@@ -218,9 +307,17 @@ app x y = noLocA (HsApp noComments x y)
 
 infixl 5 `app`
 
+-- | Build a numeric literal expression
 numLit :: Int -> LHsExpr GhcPs
 #if MIN_VERSION_ghc(9,10,1)
 numLit n = noLocA (HsLit noExtField (HsInt noExtField (mkIntegralLit n)))
 #else
 numLit n = noLocA (HsLit noComments (HsInt noExtField (mkIntegralLit n)))
 #endif
+
+-- | Wrap an expression with the tracer function
+wrapTracer :: TraceNode -> LHsExpr GhcPs -> LHsExpr GhcPs
+wrapTracer node expr =
+  var tracerFunName
+    `app` numLit node
+    `app` paren expr
