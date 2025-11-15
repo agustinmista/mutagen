@@ -9,7 +9,8 @@ import Test.Mutagen.Test.Config
 import Test.Mutagen.Test.Loop
 import Test.Mutagen.Test.Report
 import Test.Mutagen.Test.State
-import Test.Mutagen.Tracer
+import Test.Mutagen.Tracer.Bitmap (TraceBitmapLog)
+import Test.Mutagen.Tracer.Tree (TraceTreeLog)
 
 ----------------------------------------
 

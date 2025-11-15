@@ -11,8 +11,9 @@ import Test.Mutagen.Mutation
 import Test.Mutagen.Property
 import Test.Mutagen.Test.Batch
 import Test.Mutagen.Test.Config
-import Test.Mutagen.Tracer
 import Test.Mutagen.Tracer.Metadata
+import Test.Mutagen.Tracer.Trace
+import Test.Mutagen.Tracer.TraceLogger (TraceLogger (..))
 import Test.QuickCheck.Gen (Gen)
 import Test.QuickCheck.Random (QCGen, newQCGen)
 

@@ -1,14 +1,11 @@
+-- | Public API for the Mutagen Tracer plugin.
 module Test.Mutagen.Tracer
-  ( module Test.Mutagen.Tracer.Trace
-  , module Test.Mutagen.Tracer.Plugin
-  , module Test.Mutagen.Tracer.TraceLogger
-  , module Test.Mutagen.Tracer.Tree
-  , module Test.Mutagen.Tracer.Bitmap
+  ( plugin
+  , __trace__
+  , TRACE (..)
   )
 where
 
-import Test.Mutagen.Tracer.Bitmap
-import Test.Mutagen.Tracer.Plugin
-import Test.Mutagen.Tracer.Trace
-import Test.Mutagen.Tracer.TraceLogger
-import Test.Mutagen.Tracer.Tree
+import Test.Mutagen.Tracer.Annotation (TRACE (..))
+import Test.Mutagen.Tracer.Plugin (plugin)
+import Test.Mutagen.Tracer.Trace (__trace__)

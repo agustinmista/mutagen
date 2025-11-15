@@ -42,13 +42,7 @@ library
     Test.Mutagen.Shell
     Test.Mutagen.TH
     Test.Mutagen.Tracer
-    Test.Mutagen.Tracer.Annotation
     Test.Mutagen.Tracer.Plugin
-    Test.Mutagen.Tracer.Trace
-    Test.Mutagen.Tracer.TraceLogger
-    Test.Mutagen.Tracer.Tree
-    Test.Mutagen.Tracer.Bitmap
-    Test.Mutagen.Tracer.Metadata
   other-modules:
     Test.Mutagen.Test
     Test.Mutagen.Test.Config
@@ -63,6 +57,12 @@ library
     Test.Mutagen.TH.Lazy
     Test.Mutagen.TH.Fragmentable
     Test.Mutagen.TH.Util
+    Test.Mutagen.Tracer.Annotation
+    Test.Mutagen.Tracer.Trace
+    Test.Mutagen.Tracer.TraceLogger
+    Test.Mutagen.Tracer.Tree
+    Test.Mutagen.Tracer.Bitmap
+    Test.Mutagen.Tracer.Metadata
   hs-source-dirs:
     src
   build-depends:

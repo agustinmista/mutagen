@@ -15,7 +15,10 @@ import Test.Mutagen.Test.Batch
 import Test.Mutagen.Test.Report
 import Test.Mutagen.Test.State
 import Test.Mutagen.Test.Terminal
-import Test.Mutagen.Tracer
+import Test.Mutagen.Tracer.Bitmap (TraceBitmapLog)
+import Test.Mutagen.Tracer.Trace (Trace (..), TraceNode, withTrace)
+import Test.Mutagen.Tracer.TraceLogger (TraceLogger (..))
+import Test.Mutagen.Tracer.Tree (TraceTreeLog)
 import Test.QuickCheck.Gen (unGen)
 
 ----------------------------------------

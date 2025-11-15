@@ -9,7 +9,7 @@
 -- * Globally, by passing the @-fplugin@ flag to GHC:
 --
 -- @
---    -fplugin=Test.Mutagen.Tracer.Plugin
+--  -fplugin=Test.Mutagen.Tracer.Plugin
 -- @
 --
 -- * Per module, by adding the following pragma to the top of the module:
@@ -271,6 +271,10 @@ isFunRhs _ = False
 
 -- ** Constants
 
+-- | Module name of the tracing module
+tracerModuleName :: ModuleName
+tracerModuleName = mkModuleName "Test.Mutagen.Tracer"
+
 -- | Name of the tracing function
 tracerFunName :: RdrName
 tracerFunName = mkRdrName "__trace__"
@@ -278,10 +282,6 @@ tracerFunName = mkRdrName "__trace__"
 -- | Name of the tracing annotation
 tracerAnnName :: RdrName
 tracerAnnName = mkRdrName "TRACE"
-
--- | Module name of the tracing module
-tracerModuleName :: ModuleName
-tracerModuleName = mkModuleName "Test.Mutagen.Tracer.Trace"
 
 -- ** AST Builders
 
