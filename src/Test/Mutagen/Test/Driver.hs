@@ -9,8 +9,7 @@ import Test.Mutagen.Test.Config
 import Test.Mutagen.Test.Loop
 import Test.Mutagen.Test.Report
 import Test.Mutagen.Test.State
-import Test.Mutagen.Tracer.Bitmap (TraceBitmapLog)
-import Test.Mutagen.Tracer.Tree (TraceTreeLog)
+import Test.Mutagen.Tracer.Store (BitmapTraceStore, TreeTraceStore)
 
 ----------------------------------------
 
@@ -36,11 +35,11 @@ mutagenWithReport cfg p
   -- dispatch the test case runner based on the trace method
   | Tree <- traceMethod cfg = do
       -- create the initial internal state
-      st <- createInitialState @TraceTreeLog cfg (property p)
+      st <- createInitialState @TreeTraceStore cfg (property p)
       -- go go go!
       loop runTestCase_tree st
   | Bitmap <- traceMethod cfg = do
       -- create the initial internal state
-      st <- createInitialState @TraceBitmapLog cfg (property p)
+      st <- createInitialState @BitmapTraceStore cfg (property p)
       -- go go go!
       loop runTestCase_bitmap st

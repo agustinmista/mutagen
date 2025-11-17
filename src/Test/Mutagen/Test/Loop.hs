@@ -15,10 +15,12 @@ import Test.Mutagen.Test.Batch
 import Test.Mutagen.Test.Report
 import Test.Mutagen.Test.State
 import Test.Mutagen.Test.Terminal
-import Test.Mutagen.Tracer.Bitmap (TraceBitmapLog)
+import Test.Mutagen.Tracer.Store
+  ( BitmapTraceStore
+  , TraceStore (..)
+  , TreeTraceStore
+  )
 import Test.Mutagen.Tracer.Trace (Trace (..), TraceNode, withTrace)
-import Test.Mutagen.Tracer.TraceLogger (TraceLogger (..))
-import Test.Mutagen.Tracer.Tree (TraceTreeLog)
 import Test.QuickCheck.Gen (unGen)
 
 ----------------------------------------
@@ -27,7 +29,7 @@ import Test.QuickCheck.Gen (unGen)
 -- We abstract the test case runner based on the way it logs execution traces
 type TestCaseRunner log = State log -> Maybe (MutationBatch Args) -> Args -> IO (Maybe Test, State log)
 
-loop :: (TraceLogger log) => TestCaseRunner log -> State log -> IO Report
+loop :: (TraceStore log) => TestCaseRunner log -> State log -> IO Report
 loop runner st
   -- We reached the max number of tests
   | stNumPassed st >= stMaxSuccess st =
@@ -48,8 +50,8 @@ loop runner st
   | maybe False (stNumTestsSinceLastInteresting st >=) (stAutoResetAfter st)
       && null (stPassedQueue st)
       && null (stDiscardedQueue st) = do
-      resetTraceLog (stPassedTraceLog st)
-      resetTraceLog (stDiscardedTraceLog st)
+      resetTraceStore (stPassedTraceLog st)
+      resetTraceStore (stDiscardedTraceLog st)
       let st' =
             st
               ! setAutoResetAfter (maybe (stAutoResetAfter st) (Just . (* 2)) (stAutoResetAfter st))
@@ -62,7 +64,7 @@ loop runner st
       newTest runner st
 
 -- Testing is no more
-success :: (TraceLogger log) => State log -> IO Report
+success :: (TraceStore log) => State log -> IO Report
 success st = do
   reportDoneTesting st
   return
@@ -72,7 +74,7 @@ success st = do
       }
 
 -- Too many discarded tests
-giveUp :: (TraceLogger log) => State log -> String -> IO Report
+giveUp :: (TraceStore log) => State log -> String -> IO Report
 giveUp st r = do
   reportGaveUp st r
   return
@@ -83,7 +85,7 @@ giveUp st r = do
       }
 
 -- Found a bug!
-counterexample :: (TraceLogger log) => State log -> Args -> Test -> IO Report
+counterexample :: (TraceStore log) => State log -> Args -> Test -> IO Report
 counterexample st as test = do
   reportCounterexample st as test
   return
@@ -93,7 +95,7 @@ counterexample st as test = do
       , failingArgs = as
       }
 
-noExpectedFailure :: (TraceLogger log) => State log -> IO Report
+noExpectedFailure :: (TraceStore log) => State log -> IO Report
 noExpectedFailure st = do
   reportNoExpectedFailure st
   return
@@ -103,7 +105,7 @@ noExpectedFailure st = do
       }
 
 -- Generate and run a new test
-newTest :: (TraceLogger log) => TestCaseRunner log -> State log -> IO Report
+newTest :: (TraceStore log) => TestCaseRunner log -> State log -> IO Report
 newTest runner st = do
   -- print global stats
   when (stChatty st) $ do
@@ -130,15 +132,15 @@ newTest runner st = do
 -- have one generic implementation `runTestCase_generic` parameterized by the
 -- register operation of trace log used (either Tree or Bitmap).
 
-runTestCase_tree :: TestCaseRunner TraceTreeLog
+runTestCase_tree :: TestCaseRunner TreeTraceStore
 runTestCase_tree = runTestCase_generic $ \_ tr tlog -> do
-  (new, depth) <- registerTrace tr tlog
+  (new, depth) <- saveTrace tr tlog
   let prio = depth
   return (new, prio)
 
-runTestCase_bitmap :: TestCaseRunner TraceBitmapLog
+runTestCase_bitmap :: TestCaseRunner BitmapTraceStore
 runTestCase_bitmap = runTestCase_generic $ \st tr tlog -> do
-  new <- registerTrace tr tlog
+  new <- saveTrace tr tlog
   let prio = stGeneratedTraceNodes st - new
   return (new, prio)
 
@@ -269,7 +271,7 @@ updateStateAfterBoringDiscarded st =
 -- Select a new test, mutating and existing interesting one or generating a
 -- brand new otherwise.
 
-pickNextTestCase :: (TraceLogger log) => State log -> IO (Args, Maybe (MutationBatch Args), State log)
+pickNextTestCase :: (TraceStore log) => State log -> IO (Args, Maybe (MutationBatch Args), State log)
 pickNextTestCase st
   -- We can run a mutation of an interesting succesful test case
   | not (null (stPassedQueue st)) = mutateFromPassed st
@@ -278,7 +280,7 @@ pickNextTestCase st
   -- Only choice left is to generate a brand new test
   | otherwise = generateNewTest st
 
-generateNewTest :: (TraceLogger log) => State log -> IO (Args, Maybe (MutationBatch Args), State log)
+generateNewTest :: (TraceStore log) => State log -> IO (Args, Maybe (MutationBatch Args), State log)
 generateNewTest st = do
   -- First we compute an appropriate generation size
   let size = computeSize st
@@ -294,7 +296,7 @@ generateNewTest st = do
           ! increaseNumGenerated
   return (args, Nothing, st')
 
-mutateFromPassed :: (TraceLogger log) => State log -> IO (Args, Maybe (MutationBatch Args), State log)
+mutateFromPassed :: (TraceStore log) => State log -> IO (Args, Maybe (MutationBatch Args), State log)
 mutateFromPassed st = do
   let ((prio, (args, tr, mbatch)), rest) = PQueue.deleteFindMin (stPassedQueue st)
   next <- nextMutation (stFragmentStore st) mbatch
@@ -315,7 +317,7 @@ mutateFromPassed st = do
               ! setPassedQueue (PQueue.insert prio (args, tr, mbatch') rest)
       return (args', Just mbatch', st')
 
-mutateFromDiscarded :: (TraceLogger log) => State log -> IO (Args, Maybe (MutationBatch Args), State log)
+mutateFromDiscarded :: (TraceStore log) => State log -> IO (Args, Maybe (MutationBatch Args), State log)
 mutateFromDiscarded st = do
   let ((prio, (args, tr, mbatch)), rest) = PQueue.deleteFindMin (stDiscardedQueue st)
   next <- nextMutation (stFragmentStore st) mbatch

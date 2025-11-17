@@ -38,7 +38,7 @@ globalTraceRef = unsafePerformIO (newIORef (Trace []))
 {-# NOINLINE globalTraceRef #-}
 
 -- | Add a new entry to the current global trace
-addTraceNode :: Int -> IO ()
+addTraceNode :: TraceNode -> IO ()
 addTraceNode n =
   atomicModifyIORef' globalTraceRef $ \(Trace entries) ->
     (Trace (n : entries), ())

@@ -59,9 +59,9 @@ library
     Test.Mutagen.TH.Util
     Test.Mutagen.Tracer.Annotation
     Test.Mutagen.Tracer.Trace
-    Test.Mutagen.Tracer.TraceLogger
-    Test.Mutagen.Tracer.Tree
-    Test.Mutagen.Tracer.Bitmap
+    Test.Mutagen.Tracer.Store
+    Test.Mutagen.Tracer.Store.Bitmap
+    Test.Mutagen.Tracer.Store.Tree
     Test.Mutagen.Tracer.Metadata
   hs-source-dirs:
     src
