@@ -33,20 +33,37 @@ where
 
 import Control.Exception (Exception, throwIO)
 import Control.Monad (forM, forM_)
+import Control.Monad.Extra (whenM)
 import Data.Aeson (FromJSON, ToJSON, eitherDecodeFileStrict, encodeFile)
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
-import System.Directory (createDirectoryIfMissing, listDirectory)
+import System.Directory
+  ( createDirectoryIfMissing
+  , doesDirectoryExist
+  , listDirectory
+  , removeDirectoryRecursive
+  )
+import System.Environment (lookupEnv)
 import System.FilePath (takeExtension, (<.>), (</>))
+import System.IO.Unsafe (unsafePerformIO)
 
 {-------------------------------------------------------------------------------
 -- * Trace metadata
 -------------------------------------------------------------------------------}
 
 -- | Folder where to put the generated metadata
+--
+-- NOTE: can be overridden via the 'MUTAGEN_TRACER_METADATA_DIR' environment
+-- variable. Just remember to have it set up to the same value both at compile
+-- time and at runtime.
 tracerMetadataDir :: FilePath
-tracerMetadataDir = ".mutagen"
+tracerMetadataDir =
+  fromMaybe ".mutagen"
+    $ unsafePerformIO
+    $ lookupEnv "MUTAGEN_TRACER_METADATA_DIR"
+{-# NOINLINE tracerMetadataDir #-}
 
 -- | Generated instrumentation metadata
 newtype TracerMetadata = TracerMetadata
@@ -69,29 +86,40 @@ numTracingNodes metadata =
   length (concatMap moduleTracingNodes (tracerModules metadata))
 
 -- | Save the generated instrumentation metadata
-saveTracerMetadata :: TracerMetadata -> FilePath -> IO ()
-saveTracerMetadata metadata dir = do
-  createDirectoryIfMissing True dir
+--
+-- NOTE: to avoid loading potentially invalid metadata when a source file gets
+-- deleted, this function recreates the target directory if it already exists.
+saveTracerMetadata :: TracerMetadata -> IO ()
+saveTracerMetadata metadata = do
+  whenM (doesDirectoryExist tracerMetadataDir) $ do
+    removeDirectoryRecursive tracerMetadataDir
+  createDirectoryIfMissing True tracerMetadataDir
   forM_ (Map.toList (tracerModules metadata)) $ \(modName, modMetadata) ->
-    encodeFile (dir </> modName <.> "json") modMetadata
+    encodeFile (tracerMetadataDir </> modName <.> "json") modMetadata
 
 -- | Load the generated instrumentation metadata
-loadTracerMetadata :: FilePath -> IO TracerMetadata
-loadTracerMetadata dir = do
-  let isJSON file = takeExtension file == ".json"
-  files <- filter isJSON <$> listDirectory dir
+loadTracerMetadata :: IO TracerMetadata
+loadTracerMetadata = do
+  whenM (not <$> doesDirectoryExist tracerMetadataDir) $ do
+    throwIO
+      $ MutagenTracerMetadataError
+      $ "Tracer metadata directory does not exist: " <> tracerMetadataDir
+  files <- filter isJSON <$> listDirectory tracerMetadataDir
   modules <- forM files $ \file -> do
-    eitherDecodeFileStrict (dir </> file) >>= \case
-      Left err -> throwIO $ MutagenInstantiationMetadataError err
+    eitherDecodeFileStrict (tracerMetadataDir </> file) >>= \case
+      Left err -> throwIO $ MutagenTracerMetadataError err
       Right modMetadata -> return (file, modMetadata)
   return $ TracerMetadata (Map.fromList modules)
+  where
+    isJSON file = takeExtension file == ".json"
 
 -- | Exception thrown loading instantiation metadata
-data MutagenInstantiationMetadataError
-  = MutagenInstantiationMetadataError String
+data MutagenTracerMetadataError
+  = MutagenTracerMetadataError String
+  | MutagenTracerMetadataIOError String
   deriving (Show)
 
-instance Exception MutagenInstantiationMetadataError
+instance Exception MutagenTracerMetadataError
 
 {-------------------------------------------------------------------------------
 -- * Module metadata

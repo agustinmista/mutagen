@@ -45,7 +45,6 @@ import Test.Mutagen.Tracer.Metadata
   , NodeType (..)
   , mkSingleModuleTracerMetadata
   , saveTracerMetadata
-  , tracerMetadataDir
   )
 import Test.Mutagen.Tracer.Trace
 
@@ -65,7 +64,7 @@ plugin = defaultPlugin{parsedResultAction = action}
       mutagenLog $ "Plugin started on module " <> modName
       (modAST', modMetadata) <- instrumentModule cli flags modAST
       let tracerMetadata = mkSingleModuleTracerMetadata modName modMetadata
-      liftIO $ saveTracerMetadata tracerMetadata tracerMetadataDir
+      liftIO $ saveTracerMetadata tracerMetadata
       mutagenLog "Done"
       return (ParsedResult (source{hpm_module = L loc modAST'}) msgs)
 
