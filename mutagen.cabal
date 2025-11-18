@@ -60,8 +60,10 @@ library
     Test.Mutagen.Tracer.Annotation
     Test.Mutagen.Tracer.Trace
     Test.Mutagen.Tracer.Store
+    Test.Mutagen.Tracer.Store.API
     Test.Mutagen.Tracer.Store.Bitmap
     Test.Mutagen.Tracer.Store.Tree
+    Test.Mutagen.Tracer.Store.Types
     Test.Mutagen.Tracer.Metadata
   hs-source-dirs:
     src

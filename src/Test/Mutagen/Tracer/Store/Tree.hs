@@ -1,7 +1,11 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 -- | Trace-based tree trace store
 module Test.Mutagen.Tracer.Store.Tree
   ( -- * Tree trace store
-    TreeTraceStore
+    TraceStore
   , newTraceStore
   , resetTraceStore
   , saveTrace
@@ -12,42 +16,36 @@ where
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Tree (Forest, Tree (..))
+import qualified Data.Tree as Tree
 import Data.Tree.Pretty (drawVerticalForest)
+import Test.Mutagen.Tracer.Store.API (TraceStoreImpl (..))
+import Test.Mutagen.Tracer.Store.Types (TraceType (Tree))
 import Test.Mutagen.Tracer.Trace (Trace (..), TraceNode)
 
 {-------------------------------------------------------------------------------
 -- * Tree trace store
 -------------------------------------------------------------------------------}
 
--- | Trace-based tree trace store
-newtype TreeTraceStore
-  = -- | Trace tree reference
-    TreeTraceStore
-      (IORef TraceTree)
-      -- ^ Global trace tree
+instance TraceStoreImpl Tree where
+  newtype TraceStore Tree = TreeStore (IORef TraceTree)
 
--- | Create an empty trace store
-newTraceStore :: IO TreeTraceStore
-newTraceStore = TreeTraceStore <$> newIORef emptyTraceTree
+  type SaveTraceResult Tree = (Int, Int)
 
--- | Reset a trace store
-resetTraceStore :: TreeTraceStore -> IO ()
-resetTraceStore (TreeTraceStore ref) = writeIORef ref emptyTraceTree
+  newTraceStore _ = do
+    TreeStore <$> newIORef emptyTraceTree
 
--- | Save a trace into a trace store
-saveTrace :: Trace -> TreeTraceStore -> IO (Int, Int)
-saveTrace trace (TreeTraceStore ref) = do
-  tt <- readIORef ref
-  let (tt', n, d) = insertTrace trace tt
-  writeIORef ref tt'
-  return (n, d)
+  resetTraceStore (TreeStore ref) = do
+    writeIORef ref emptyTraceTree
 
--- | Print a trace store
-printTraceStore :: TreeTraceStore -> IO ()
-printTraceStore (TreeTraceStore ref) = do
-  tt <- readIORef ref
-  putStrLn (drawTraceTree tt)
+  saveTrace trace (TreeStore ref) = do
+    tt <- readIORef ref
+    let (tt', n, d) = insertTrace trace tt
+    writeIORef ref tt'
+    return (n, d)
+
+  printTraceStore (TreeStore ref) = do
+    tt <- readIORef ref
+    putStrLn (drawTraceTree tt)
 
 {-------------------------------------------------------------------------------
 -- * Trace trees implemented using "rose maps"
@@ -83,13 +81,13 @@ insertTrace (Trace entries) = go 0 entries
         (tlog', n) = chain es
 
 -- | Convert a trace tree to a forest for pretty printing
-traceTreetoForest :: TraceTree -> Forest TraceNode
+traceTreetoForest :: TraceTree -> Tree.Forest TraceNode
 traceTreetoForest (TraceTree tt) =
-  Map.elems (Map.mapWithKey (\node -> Node node . traceTreetoForest) tt)
+  Map.elems (Map.mapWithKey (\node -> Tree.Node node . traceTreetoForest) tt)
 
 -- | Pretty print a trace tree
 drawTraceTree :: TraceTree -> String
 drawTraceTree tt = drawVerticalForest (fmap show <$> toForest tt)
   where
     toForest (TraceTree tt') =
-      Map.elems (Map.mapWithKey (\node -> Node node . traceTreetoForest) tt')
+      Map.elems (Map.mapWithKey (\node -> Tree.Node node . traceTreetoForest) tt')

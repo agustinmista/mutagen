@@ -9,7 +9,6 @@ import Test.Mutagen.Test.Config
 import Test.Mutagen.Test.Loop
 import Test.Mutagen.Test.Report
 import Test.Mutagen.Test.State
-import Test.Mutagen.Tracer.Store (BitmapTraceStore, TreeTraceStore)
 
 ----------------------------------------
 
@@ -31,15 +30,8 @@ mutagenWith cfg p = void (mutagenWithReport cfg p)
 
 -- The main driver
 mutagenWithReport :: (Testable p) => Config -> p -> IO Report
-mutagenWithReport cfg p
-  -- dispatch the test case runner based on the trace method
-  | Tree <- traceMethod cfg = do
-      -- create the initial internal state
-      st <- createInitialState @TreeTraceStore cfg (property p)
-      -- go go go!
-      loop runTestCase_tree st
-  | Bitmap <- traceMethod cfg = do
-      -- create the initial internal state
-      st <- createInitialState @BitmapTraceStore cfg (property p)
-      -- go go go!
-      loop runTestCase_bitmap st
+mutagenWithReport cfg p = do
+  -- create the initial internal state
+  st <- initMutagenState cfg (property p)
+  -- go go go!
+  loop runTestCase st

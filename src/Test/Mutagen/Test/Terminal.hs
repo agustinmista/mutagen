@@ -83,7 +83,7 @@ printBatchStatus mbatch = do
       putStrLn (show p <> " <== current")
       mapM_ print ps
 
-printGlobalStats :: State log -> IO ()
+printGlobalStats :: MutagenState -> IO ()
 printGlobalStats st = do
   printf ">>> Statistics:\n"
   printf
@@ -126,19 +126,19 @@ printGlobalStats st = do
   printf "* Elapsed time: %d seconds (+/- 1 second)\n" elapsed
   printf "\n"
 
-reportDoneTesting :: State log -> IO ()
+reportDoneTesting :: MutagenState -> IO ()
 reportDoneTesting st = do
   clear
   printGlobalStats st
   printf ">>> Done testing\n"
 
-reportGaveUp :: State log -> String -> IO ()
+reportGaveUp :: MutagenState -> String -> IO ()
 reportGaveUp st r = do
   clear
   printGlobalStats st
   printf ">>> Gave up (%s)\n" r
 
-reportCounterexample :: State log -> Args -> Test -> IO ()
+reportCounterexample :: MutagenState -> Args -> Test -> IO ()
 reportCounterexample st as res = do
   clear
   printGlobalStats st
@@ -152,7 +152,7 @@ reportCounterexample st as res = do
   prettyPrint as
   printf "\n"
 
-reportNoExpectedFailure :: State log -> IO ()
+reportNoExpectedFailure :: MutagenState -> IO ()
 reportNoExpectedFailure st = do
   clear
   printGlobalStats st

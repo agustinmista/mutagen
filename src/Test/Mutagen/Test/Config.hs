@@ -3,16 +3,26 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Test.Mutagen.Test.Config where
+module Test.Mutagen.Test.Config
+  ( -- * Configuration options
+    Config (..)
+  , defaultConfig
+
+    -- * Helpers
+  , allow
+  , example
+
+    -- * Re-exports
+  , TraceType (..)
+  )
+where
 
 import Data.Typeable
 import Test.Mutagen.Mutation
 import Test.Mutagen.Property
+import Test.Mutagen.Tracer.Store (TraceType (..))
 
 ----------------------------------------
-
--- | Testing options (available to the user)
-data TraceMethod = Tree | Bitmap
 
 data Config
   = Config
@@ -70,7 +80,7 @@ data Config
   -- the testing loop starts.
   , ----------------------------------------
     -- Tracing options
-    traceMethod :: TraceMethod
+    traceType :: TraceType
   -- ^ The tracing log mechanism. Either `Tree` or `Bitmap`. `Tree` uses
   -- prefix-based traces (quite expensive but more precise). `Bitmap` uses
   -- edge-based traces (cheaper but less precise).
@@ -101,7 +111,7 @@ defaultConfig =
     , randomFragments = 10
     , filterFragments = Nothing
     , examples = []
-    , traceMethod = Bitmap
+    , traceType = Bitmap
     , maxTraceLength = Nothing
     , chatty = False
     , debug = False

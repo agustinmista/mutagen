@@ -1,52 +1,41 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE RankNTypes #-}
 
+-- | Trace store implementations based on different trace types.
 module Test.Mutagen.Tracer.Store
-  ( -- * Generic trace store interface
-    TraceStore (..)
-    -- * Trace store implementations
-    , BitmapTraceStore
-    , TreeTraceStore
+  ( -- * Trace types
+    TraceType (..)
+  , STraceType (..)
+  , withTraceType
+
+    -- * Re-exports
+  , TraceStoreImpl (..)
   )
 where
 
-import Data.Kind
-import Test.Mutagen.Tracer.Store.Bitmap (BitmapTraceStore)
-import qualified Test.Mutagen.Tracer.Store.Bitmap as Bitmap
-import Test.Mutagen.Tracer.Store.Tree (TreeTraceStore)
-import qualified Test.Mutagen.Tracer.Store.Tree as Tree
-import Test.Mutagen.Tracer.Trace
+import Test.Mutagen.Tracer.Store.API (TraceStoreImpl (..))
+import Test.Mutagen.Tracer.Store.Bitmap ()
+import Test.Mutagen.Tracer.Store.Tree ()
+import Test.Mutagen.Tracer.Store.Types (TraceType (..))
 
 {-------------------------------------------------------------------------------
--- * Generic trace store interface
+-- * Trace type selection at runtime
 -------------------------------------------------------------------------------}
 
--- | Generic trace store interface
-class TraceStore store where
-  type SaveTraceOutput store :: Type
-  -- ^ Output type of 'saveTrace' for the given store
+-- | Singleton version of 'TraceType'.
+data STraceType trace where
+  SBitmap :: STraceType Bitmap
+  STree :: STraceType Tree
 
-  newTraceStore :: Int -> IO store
-  -- ^ Create a new trace store for the given number of tracing nodes
-
-  resetTraceStore :: store -> IO ()
-  -- ^ Reset a trace store, deleting all saved traces but without deallocating it
-
-  saveTrace :: Trace -> store -> IO (SaveTraceOutput store)
-  -- ^ Save a trace into a trace store
-
-  printTraceStore :: store -> IO ()
-  -- ^ Print a trace store for debugging purposes
-
-instance TraceStore BitmapTraceStore where
-  type SaveTraceOutput BitmapTraceStore = Int
-  newTraceStore = Bitmap.newTraceStore
-  resetTraceStore = Bitmap.resetTraceStore
-  saveTrace = Bitmap.saveTrace
-  printTraceStore = Bitmap.printTraceStore
-
-instance TraceStore TreeTraceStore where
-  type SaveTraceOutput Tree.TreeTraceStore = (Int, Int)
-  newTraceStore = const Tree.newTraceStore
-  resetTraceStore = Tree.resetTraceStore
-  saveTrace = Tree.saveTrace
-  printTraceStore = Tree.printTraceStore
+-- | Eliminate a 'TraceType' by providing a continuation that works for all
+-- possible trace types.
+withTraceType
+  :: TraceType
+  -> (forall trace. (TraceStoreImpl trace) => STraceType trace -> r)
+  -> r
+withTraceType method k =
+  case method of
+    Bitmap -> k SBitmap
+    Tree -> k STree
