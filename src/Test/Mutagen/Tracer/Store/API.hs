@@ -1,5 +1,5 @@
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- | Generic trace store interface
 module Test.Mutagen.Tracer.Store.API
@@ -8,8 +8,8 @@ module Test.Mutagen.Tracer.Store.API
   )
 where
 
-import Test.Mutagen.Tracer.Trace
 import Test.Mutagen.Tracer.Store.Types (TraceType)
+import Test.Mutagen.Tracer.Trace
 
 {-------------------------------------------------------------------------------
 -- * Generic trace store interface

@@ -5,7 +5,8 @@
 
 module Test.Mutagen.Test.Config
   ( -- * Configuration options
-    Config (..)
+    DebugMode (..)
+  , Config (..)
   , defaultConfig
 
     -- * Helpers
@@ -19,10 +20,13 @@ where
 
 import Data.Typeable
 import Test.Mutagen.Mutation
-import Test.Mutagen.Property
+import Test.Mutagen.Property (Args (..), IsArgs)
 import Test.Mutagen.Tracer.Store (TraceType (..))
 
 ----------------------------------------
+
+data DebugMode = NoDebug | StopOnPassed | AlwaysStop
+  deriving (Eq, Show)
 
 data Config
   = Config
@@ -34,6 +38,8 @@ data Config
   -- ^ Max discard ratio
   , timeout :: Maybe Integer
   -- ^ Campaign time budget in seconds (has precedence over maxSuccess)
+  , expect :: Bool
+  -- ^ Whether the property is expected to hold (True) or to fail (False).
   , ----------------------------------------
     -- Generation options
     maxGenSize :: Int
@@ -91,7 +97,7 @@ data Config
     -- Debug options
     chatty :: Bool
   -- ^ Print extra info
-  , debug :: Bool
+  , debug :: DebugMode
   -- ^ Stop after every step and wait for the user to press Enter.
   }
 
@@ -101,6 +107,7 @@ defaultConfig =
     { maxSuccess = 1000000
     , maxDiscardRatio = 1000
     , timeout = Nothing
+    , expect = True
     , maxGenSize = 10
     , randomMutations = 1
     , mutationLimit = Nothing
@@ -114,7 +121,7 @@ defaultConfig =
     , traceType = Bitmap
     , maxTraceLength = Nothing
     , chatty = False
-    , debug = False
+    , debug = NoDebug
     }
 
 allow :: forall a. (Typeable a) => TypeRep

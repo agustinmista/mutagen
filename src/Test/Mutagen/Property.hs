@@ -5,22 +5,55 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Test.Mutagen.Property where
+-- | Combinators for constructing and running properties
+module Test.Mutagen.Property
+  ( -- * Property arguments
+    IsArgs
+  , Args (..)
+  , Result (..)
+  , pattern Passed
+  , pattern Failed
+  , pattern Discarded
+  , Prop (..)
+  , mapProp
+  , protectProp
+  , (==>)
+  , discardAfter
+  , IsProp (..)
+  , Property (..)
+  , mapProperty
+  , forAll
+  , expectFailure
+  , Testable (..)
+  )
+where
 
 import Data.Typeable
 import System.Timeout
-import Test.Mutagen.Exception
+import Test.Mutagen.Exception (AnException, discard, isDiscard, tryEvaluateIO)
 import Test.Mutagen.Fragment
 import Test.Mutagen.Lazy
 import Test.Mutagen.Mutation
 import Test.QuickCheck (Arbitrary, Gen, arbitrary)
 import Unsafe.Coerce
 
-----------------------------------------
+{-------------------------------------------------------------------------------
+-- * Property arguments
+-------------------------------------------------------------------------------}
+
+-- | Constraints needed for types that can be used as property arguments
+type IsArgs a =
+  ( Show a
+  , Eq a
+  , Ord a
+  , Typeable a
+  , Arbitrary a
+  , Fragmentable a
+  , Mutable a
+  , Lazy a
+  )
+
 -- Test arguments hidden behind an existential
-
-type IsArgs a = (Show a, Eq a, Ord a, Typeable a, Arbitrary a, Fragmentable a, Mutable a, Lazy a)
-
 data Args = forall a. (IsArgs a) => Args a
 
 instance Show Args where
@@ -28,10 +61,7 @@ instance Show Args where
 
 instance Mutable Args where
   mutate (Args a) = fmap Args <$> mutate a
-
-  inside pos mut (Args a) =
-    fmap Args <$> inside pos mut a
-
+  inside pos mut (Args a) = fmap Args <$> inside pos mut a
   positions (Args a) = positions a
 
 instance Lazy Args where
@@ -50,111 +80,134 @@ instance Ord Args where
       Just b' -> compare a b'
       Nothing -> LT
 
--- Like for the fragments, this shouldn't be needed because the Args
--- should be of the same type at this point. I hope it works!!
-
 instance Fragmentable Args where
   fragmentize (Args a) = fragmentize a
 
-----------------------------------------
--- Tests
+{-------------------------------------------------------------------------------
+-- * Property results
+-------------------------------------------------------------------------------}
 
-data Test = Test
-  { ok :: Maybe Bool
-  , exc :: Maybe AnException
-  , reason :: Maybe String
-  , expect :: Bool
+-- | Result of executing a property
+data Result = Result
+  { resultOk :: Maybe Bool
+  -- ^ 'Just True' for passed, 'Just False' for failed, 'Nothing' for discarded
+  , resultException :: Maybe AnException
+  -- ^ Exception raised during evaluation, if any
+  , resultReason :: Maybe String
+  -- ^ Reason for failure or discarding, if any
+  , resultExpects :: Bool
+  -- ^ Whether the test was expected to pass or fail
   }
   deriving (Show)
 
--- Just True  => Passed
--- Just False => Failed
--- Nothing    => Discarded
+{-# COMPLETE Passed, Failed, Discarded :: Result #-}
 
-{-# COMPLETE Passed, Failed, Discarded :: Test #-}
+pattern Passed, Failed, Discarded :: Result
+pattern Passed <- Result{resultOk = Just True}
+pattern Failed <- Result{resultOk = Just False}
+pattern Discarded <- Result{resultOk = Nothing}
 
-pattern Passed, Failed, Discarded :: Test
-pattern Passed <- Test{ok = Just True}
-pattern Failed <- Test{ok = Just False}
-pattern Discarded <- Test{ok = Nothing}
+-- ** Result constructors
 
--- | Test constructors
-bool :: Bool -> Test
-bool b = Test (Just b) Nothing Nothing True
+bool :: Bool -> Result
+bool b = Result (Just b) Nothing Nothing True
 
-passed :: Test
-passed = bool True
-
-failed :: Test
+failed :: Result
 failed = bool False
 
-discarded :: Test
-discarded = Test Nothing Nothing Nothing True
+discarded :: Result
+discarded = Result Nothing Nothing Nothing True
 
--- | Protecting results against certain exceptions
-protectResult :: Result -> Result
-protectResult (Result io) = Result $ do
-  let force t = ok t == Just False `seq` t
+exception :: AnException -> Result
+exception e
+  | isDiscard e =
+      discarded
+        { resultException = Just e
+        , resultReason = Just "evaluated 'discard'"
+        }
+  | otherwise =
+      failed
+        { resultException = Just e
+        , resultReason = Just "exception"
+        }
+
+{-------------------------------------------------------------------------------
+-- * Executable properties
+-------------------------------------------------------------------------------}
+
+-- | Executable properties as IO computations producing results
+newtype Prop = Prop {unProp :: IO Result}
+
+-- | Map a function over the result of a prop
+mapProp :: (Result -> Result) -> Prop -> Prop
+mapProp f = Prop . fmap f . unProp
+
+-- | Protect a prop against exceptions during evaluation
+protectProp :: Prop -> Prop
+protectProp (Prop io) = Prop $ do
+  let force t = resultOk t == Just False `seq` t
   res <- tryEvaluateIO (fmap force io)
   case res of
     Left e -> return (exception e)
     Right r -> return r
 
-exception :: AnException -> Test
-exception e
-  | isDiscard e = discarded{exc = Just e, reason = Just "evaluated 'discard'"}
-  | otherwise = failed{exc = Just e, reason = Just "exception"}
-
-----------------------------------------
--- Results are computations returning tests
-
-newtype Result = Result {unResult :: IO Test}
-
-mapResult :: (Test -> Test) -> Result -> Result
-mapResult f = Result . fmap f . unResult
-
--- | Types that can produce results
-class Res a where
-  result :: a -> Result
-
-instance Res Result where
-  result = id
-
-instance Res Test where
-  result t = Result (return t)
-
-instance Res Bool where
-  result b = Result (return (bool b))
-
-instance (Res a) => Res (IO a) where
-  result ior = Result $ do
-    r <- ior
-    unResult (result r)
-
--- | Properties with preconditions
-(==>) :: (Res a) => Bool -> a -> Result
-(==>) True post = result post
-(==>) False _ = result discarded
+-- | Implication combinator for properties
+(==>) :: (IsProp a) => Bool -> a -> Prop
+(==>) True post = prop post
+(==>) False _ = prop discarded
 
 infixr 2 ==>
 
 -- | Discard a property if it takes more than some milliseconds
-discardAfter :: (Res a) => Int -> a -> Result
-discardAfter millis a = Result $ do
-  let iot = unResult (result a)
+discardAfter :: (IsProp a) => Int -> a -> Prop
+discardAfter millis a = Prop $ do
+  let iot = unProp (prop a)
   mbt <- timeout (millis * 1000) iot
   maybe discard return mbt
 
-----------------------------------------
--- Properties as generators of arguments and runner functions
+-- | Types that can produce props
+class IsProp a where
+  prop :: a -> Prop
 
-data Property = Property (Gen Args) (Args -> Result)
+instance IsProp Prop where
+  prop = id
 
-mapPropertyResult :: (Result -> Result) -> Property -> Property
-mapPropertyResult f (Property gen prop) = Property gen (f . prop)
+instance IsProp Result where
+  prop t = Prop (return t)
 
-----------------------------------------
--- Testable properties
+instance IsProp Bool where
+  prop b = Prop (return (bool b))
+
+instance (IsProp a) => IsProp (IO a) where
+  prop ior = Prop $ do
+    r <- ior
+    unProp (prop r)
+
+{-------------------------------------------------------------------------------
+-- * Testable properties
+-------------------------------------------------------------------------------}
+
+-- | Properties encapsulating generators of arguments and runner functions
+data Property = Property (Gen Args) (Args -> Prop)
+
+-- | Map a function over the inner executable 'Prop' of a property
+mapProperty :: (Prop -> Prop) -> Property -> Property
+mapProperty f (Property g p) = Property g (f . p)
+
+-- | Universal quantification over generated arguments
+forAll :: (IsArgs a, IsProp b) => Gen a -> (a -> b) -> Property
+forAll gen f =
+  Property (Args <$> gen) $ \(Args as) ->
+    prop (f (unsafeCoerce as))
+
+-- | Expect a property to fail
+expectFailure :: (Testable prop) => prop -> Property
+expectFailure p =
+  mapProperty
+    (mapProp (\test -> test{resultExpects = False}))
+    (property p)
+
+-- ** Testable type class
 
 -- | A class for testable properties
 class Testable a where
@@ -168,15 +221,5 @@ instance Testable Bool where
   property b = property (\() -> b)
 
 -- | Testable properties with one argument
-instance (IsArgs a, Res b) => Testable (a -> b) where
+instance (IsArgs a, IsProp b) => Testable (a -> b) where
   property = forAll arbitrary
-
-forAll :: (IsArgs a, Res b) => Gen a -> (a -> b) -> Property
-forAll gen f =
-  Property (Args <$> gen) (\(Args as) -> result (f (unsafeCoerce as)))
-
-expectFailure :: (Testable prop) => prop -> Property
-expectFailure p =
-  mapPropertyResult
-    (mapResult (\test -> test{expect = False}))
-    (property p)

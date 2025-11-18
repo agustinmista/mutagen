@@ -36,9 +36,6 @@ instance Ord Fragment where
       Just f2' -> compare f1 f2'
       Nothing -> LT
 
--- This ^ shouldn't be needed because the fragments should be of the same
--- type at this point. Nonetheless, I hope it works!!
-
 instance Show Fragment where
   show (Fragment a) = "Fragment(" <> show a <> ")"
 

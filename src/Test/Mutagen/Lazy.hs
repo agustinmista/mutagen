@@ -1,8 +1,11 @@
+-- | Tracking lazy evaluation of expressions
 module Test.Mutagen.Lazy
-  ( __evaluated__
-  , addEvaluatedPos
+  ( -- * Lazy evaluation tracking interface
+    __evaluated__
   , resetPosRef
   , readPosRef
+
+    -- * Lazy type class
   , Lazy (..)
   )
 where
@@ -16,9 +19,11 @@ import Data.Word
 import System.IO.Unsafe
 import Test.Mutagen.Mutation (Pos)
 
-----------------------------------------
--- Collecting evaluated positions
+{-------------------------------------------------------------------------------
+-- * Lazy evaluation tracking interface
+-------------------------------------------------------------------------------}
 
+-- | Injectable function to mark the evaluation an expression at some possition
 __evaluated__ :: Pos -> a -> a
 __evaluated__ pos expr =
   unsafePerformIO $ do
@@ -26,39 +31,35 @@ __evaluated__ pos expr =
     return expr
 {-# INLINE __evaluated__ #-}
 
-----------------------------------------
--- IORef too keep track of the evaluated positions
-
-{-# NOINLINE posRef #-}
+-- | Global IORef to store evaluated positions
 posRef :: IORef [Pos]
 posRef = unsafePerformIO (newIORef [])
+{-# NOINLINE posRef #-}
 
--- Add a new position to the ref
+-- | Add evaluated position to the global IORef
 addEvaluatedPos :: Pos -> IO ()
 addEvaluatedPos pos = modifyIORef' posRef (reverse pos :)
 
--- Reset traces
+-- | Reset the global IORef of evaluated positions
 resetPosRef :: IO ()
 resetPosRef = modifyIORef' posRef (const [])
 
--- Read traces
+-- | Read the global IORef of evaluated positions
 readPosRef :: IO [Pos]
 readPosRef = reverse <$> readIORef posRef
 
-----------------------------------------
--- Lazy class
+{-------------------------------------------------------------------------------
+-- * Lazy type class
+-------------------------------------------------------------------------------}
 
+-- | Class for types that can track lazy evaluation of their subexpressions
 class Lazy a where
   lazy :: a -> a
   lazy = lazyNode []
 
   lazyNode :: Pos -> a -> a
 
-----------------------------------------
-
--- | Lazy instances
-
-----------------------------------------
+-- ** Lazy instances
 
 instance Lazy () where
   lazyNode = __evaluated__
@@ -119,11 +120,16 @@ instance (Lazy a) => Lazy [a] where
 
 instance (Lazy v) => Lazy (Map k v) where
   lazyNode pre m =
-    snd (Map.mapAccum (\c v -> (c + 1, __evaluated__ pre (lazyNode (c : pre) v))) 0 m)
+    snd (Map.mapAccum f 0 m)
+    where
+      f c v = (c + 1, __evaluated__ pre (lazyNode (c : pre) v))
 
 -- Tuple instances
 
-instance (Lazy a, Lazy b) => Lazy (a, b) where
+instance
+  (Lazy a, Lazy b)
+  => Lazy (a, b)
+  where
   lazyNode pre (a, b) =
     __evaluated__
       pre
@@ -131,7 +137,10 @@ instance (Lazy a, Lazy b) => Lazy (a, b) where
       , lazyNode (1 : pre) b
       )
 
-instance (Lazy a, Lazy b, Lazy c) => Lazy (a, b, c) where
+instance
+  (Lazy a, Lazy b, Lazy c)
+  => Lazy (a, b, c)
+  where
   lazyNode pre (a, b, c) =
     __evaluated__
       pre
@@ -140,7 +149,10 @@ instance (Lazy a, Lazy b, Lazy c) => Lazy (a, b, c) where
       , lazyNode (2 : pre) c
       )
 
-instance (Lazy a, Lazy b, Lazy c, Lazy d) => Lazy (a, b, c, d) where
+instance
+  (Lazy a, Lazy b, Lazy c, Lazy d)
+  => Lazy (a, b, c, d)
+  where
   lazyNode pre (a, b, c, d) =
     __evaluated__
       pre
@@ -150,7 +162,10 @@ instance (Lazy a, Lazy b, Lazy c, Lazy d) => Lazy (a, b, c, d) where
       , lazyNode (3 : pre) d
       )
 
-instance (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e) => Lazy (a, b, c, d, e) where
+instance
+  (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e)
+  => Lazy (a, b, c, d, e)
+  where
   lazyNode pre (a, b, c, d, e) =
     __evaluated__
       pre
@@ -161,7 +176,10 @@ instance (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e) => Lazy (a, b, c, d, e) where
       , lazyNode (4 : pre) e
       )
 
-instance (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f) => Lazy (a, b, c, d, e, f) where
+instance
+  (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f)
+  => Lazy (a, b, c, d, e, f)
+  where
   lazyNode pre (a, b, c, d, e, f) =
     __evaluated__
       pre
@@ -173,7 +191,10 @@ instance (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f) => Lazy (a, b, c, d, e
       , lazyNode (5 : pre) f
       )
 
-instance (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f, Lazy g) => Lazy (a, b, c, d, e, f, g) where
+instance
+  (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f, Lazy g)
+  => Lazy (a, b, c, d, e, f, g)
+  where
   lazyNode pre (a, b, c, d, e, f, g) =
     __evaluated__
       pre
@@ -186,7 +207,10 @@ instance (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f, Lazy g) => Lazy (a, b,
       , lazyNode (6 : pre) g
       )
 
-instance (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f, Lazy g, Lazy h) => Lazy (a, b, c, d, e, f, g, h) where
+instance
+  (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f, Lazy g, Lazy h)
+  => Lazy (a, b, c, d, e, f, g, h)
+  where
   lazyNode pre (a, b, c, d, e, f, g, h) =
     __evaluated__
       pre
@@ -200,7 +224,10 @@ instance (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f, Lazy g, Lazy h) => Laz
       , lazyNode (7 : pre) h
       )
 
-instance (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f, Lazy g, Lazy h, Lazy i) => Lazy (a, b, c, d, e, f, g, h, i) where
+instance
+  (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f, Lazy g, Lazy h, Lazy i)
+  => Lazy (a, b, c, d, e, f, g, h, i)
+  where
   lazyNode pre (a, b, c, d, e, f, g, h, i) =
     __evaluated__
       pre
@@ -215,7 +242,10 @@ instance (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f, Lazy g, Lazy h, Lazy i
       , lazyNode (8 : pre) i
       )
 
-instance (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f, Lazy g, Lazy h, Lazy i, Lazy j) => Lazy (a, b, c, d, e, f, g, h, i, j) where
+instance
+  (Lazy a, Lazy b, Lazy c, Lazy d, Lazy e, Lazy f, Lazy g, Lazy h, Lazy i, Lazy j)
+  => Lazy (a, b, c, d, e, f, g, h, i, j)
+  where
   lazyNode pre (a, b, c, d, e, f, g, h, i, j) =
     __evaluated__
       pre

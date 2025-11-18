@@ -3,7 +3,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 
--- | Runntime types.
+-- | Runtime trace types
 module Test.Mutagen.Tracer.Store.Types
   ( -- * Trace types
     TraceType (..)

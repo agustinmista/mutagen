@@ -11,34 +11,27 @@ main :: IO ()
 main = do
   let config =
         defaultConfig
-          { -- Max generation size
-            maxGenSize = 5
-          , -- Go step by step
-            -- debug = True,
-
-            -- The tracing backend, either Tree or Bitmap (default)
-            -- traceMethod = Tree,    -- Prefix trees (Tries)
-            -- traceMethod = Bitmap,  -- Edge-based bitmaps (like AFL)
-
-            -- Use lazyness to prune mutations that affect unevaluated subexpressions
-            useLazyPrunning = True
-          , -- Keep a store of test case fragments to be reused
-            useFragments = True
-          , -- We can provide examples to initialize the fragment store
-            examples =
+          { maxGenSize = 5 -- Max generation size
+          -- , debug = StopOnPassed -- Go step by step but skip discarded tests
+          , useLazyPrunning = True -- Pprune mutations affecting unevaluated subexpressions
+          , useFragments = True -- Keep a store of test case fragments to be reused
+          , examples -- We can provide examples to initialize the fragment store
+            =
               [ example (Star (Atom (ASCII 'Y')))
               , example (Plus Eps (Atom (ASCII 'X')))
               ]
-          , -- Only store fragments of the following types (default is all types)
-            filterFragments =
+          , filterFragments -- Only store fragments of the following types
+            =
               Just
                 [ allow @(RE ASCII)
                 , allow @ASCII
                 ]
           }
-  let prop = expectFailure Spec.prop_optimize
   -- TODO: use a Tasty driver here after it's implemented
-  report <- mutagenWithReport config prop
+  report <-
+    mutagenWithReport config
+      $ expectFailure
+      $ Spec.prop_optimize
   if isSuccess report
     then exitSuccess
     else exitFailure

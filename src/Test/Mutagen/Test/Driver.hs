@@ -1,7 +1,17 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Test.Mutagen.Test.Driver where
+-- | Test drivers for Mutagen properties, mirrored from QuickCheck
+module Test.Mutagen.Test.Driver
+  ( -- * Test drivers
+    mutagen
+  , mutagenVerbose
+  , mutagenVerboseReport
+  , mutagenReport
+  , mutagenWith
+  , mutagenWithReport
+  )
+where
 
 import Control.Monad
 import Test.Mutagen.Property
@@ -10,28 +20,34 @@ import Test.Mutagen.Test.Loop
 import Test.Mutagen.Test.Report
 import Test.Mutagen.Test.State
 
-----------------------------------------
+{-------------------------------------------------------------------------------
+-- * Test drivers
+-------------------------------------------------------------------------------}
 
--- | Test drivers, mirrored from QuickCheck ones
+-- | Run Mutagen with default configuration
 mutagen :: (Testable p) => p -> IO ()
 mutagen = mutagenWith defaultConfig
 
+-- | Run Mutagen with default configuration in verbose mode
 mutagenVerbose :: (Testable p) => p -> IO ()
 mutagenVerbose = mutagenWith defaultConfig{chatty = True}
 
+-- | Run Mutagen with default configuration in verbose mode, returning a report
 mutagenVerboseReport :: (Testable p) => p -> IO Report
 mutagenVerboseReport = mutagenWithReport defaultConfig{chatty = True}
 
+-- | Run Mutagen with default configuration, returning a report
 mutagenReport :: (Testable p) => p -> IO Report
 mutagenReport = mutagenWithReport defaultConfig
 
+-- | Run Mutagen with a custom configuration
 mutagenWith :: (Testable p) => Config -> p -> IO ()
 mutagenWith cfg p = void (mutagenWithReport cfg p)
 
--- The main driver
+-- | Run Mutagen with a custom configuration, returning a report
 mutagenWithReport :: (Testable p) => Config -> p -> IO Report
 mutagenWithReport cfg p = do
-  -- create the initial internal state
+  -- Create the initial internal state
   st <- initMutagenState cfg (property p)
-  -- go go go!
+  -- Go go go!
   loop runTestCase st

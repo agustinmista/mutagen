@@ -2,14 +2,13 @@ module Test.Mutagen.Test.Terminal where
 
 import Control.Monad
 import Data.Maybe
-import qualified Data.PQueue.Prio.Min as PQueue
 import Data.Time.Clock.POSIX
 import System.Console.ANSI
 import System.IO
 import Test.Mutagen.Fragment
 import Test.Mutagen.Mutation
 import Test.Mutagen.Property
-import Test.Mutagen.Test.Batch
+import Test.Mutagen.Test.Queue (MutationBatch (..), mutationQueueSize)
 import Test.Mutagen.Test.State
 import Test.Mutagen.Tracer.Trace
 import Text.Pretty.Simple
@@ -71,13 +70,15 @@ printMutatedTestCaseTrace tr = do
 printBatchStatus :: MutationBatch Args -> IO ()
 printBatchStatus mbatch = do
   printf
-    ">>> Current mutation batch: %d tests enqueued, %d mutations left\n"
-    (length (mb_curr_queue mbatch))
-    (mb_rand_num mbatch)
+    ">>> Current mutation batch: %d tests enqueued, %d mutations levels left\n"
+    (length (mbCurrBatch mbatch))
+    (mbMaxMutationDepth mbatch)
   printf ">>> Mutated positions:\n"
-  mapM_ (\pos -> putStrLn (show pos <> " *")) (reverse (mb_past_pos mbatch))
+  mapM_
+    (\pos -> putStrLn (show pos <> " *"))
+    (reverse (mbPastPositions mbatch))
   printf ">>> Next mutable positions:\n"
-  case mb_next_pos mbatch of
+  case mbNextPositions mbatch of
     [] -> return ()
     (p : ps) -> do
       putStrLn (show p <> " <== current")
@@ -108,8 +109,8 @@ printGlobalStats st = do
     (stNumFragMutants st)
   printf
     "* Enqueued tests for mutation: %d passed, %d discarded\n"
-    (PQueue.size (stPassedQueue st))
-    (PQueue.size (stDiscardedQueue st))
+    (mutationQueueSize (stPassedQueue st))
+    (mutationQueueSize (stDiscardedQueue st))
   printf
     "* Auto-reset is %s, using %d random mutations (after %d trace log resets)\n"
     (maybe "off" (const "on") (stAutoResetAfter st))
@@ -138,16 +139,16 @@ reportGaveUp st r = do
   printGlobalStats st
   printf ">>> Gave up (%s)\n" r
 
-reportCounterexample :: MutagenState -> Args -> Test -> IO ()
+reportCounterexample :: MutagenState -> Args -> Result -> IO ()
 reportCounterexample st as res = do
   clear
   printGlobalStats st
   printf ">>> Found counterexample!\n"
   printf
     "* Reason of failure: %s\n"
-    (fromMaybe "assertion failed" (reason res))
-  when (isJust (exc res)) $ do
-    printf "* The exception was:\n%s\n" (show (fromJust (exc res)))
+    (fromMaybe "assertion failed" (resultReason res))
+  when (isJust (resultException res)) $ do
+    printf "* The exception was:\n%s\n" (show (fromJust (resultException res)))
   printf "* Failing inputs:\n"
   prettyPrint as
   printf "\n"

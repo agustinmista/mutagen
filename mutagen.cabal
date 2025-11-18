@@ -48,7 +48,7 @@ library
     Test.Mutagen.Test.Config
     Test.Mutagen.Test.State
     Test.Mutagen.Test.Loop
-    Test.Mutagen.Test.Batch
+    Test.Mutagen.Test.Queue
     Test.Mutagen.Test.Report
     Test.Mutagen.Test.Driver
     Test.Mutagen.Test.Terminal
