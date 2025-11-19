@@ -95,7 +95,7 @@ data Result = Result
   -- ^ Exception raised during evaluation, if any
   , resultReason :: Maybe String
   -- ^ Reason for failure or discarding, if any
-  , resultExpects :: Bool
+  , resultExpect :: Bool
   -- ^ Whether the test was expected to pass or fail
   }
   deriving (Show)
@@ -204,7 +204,7 @@ forAll gen f =
 expectFailure :: (Testable prop) => prop -> Property
 expectFailure p =
   mapProperty
-    (mapProp (\test -> test{resultExpects = False}))
+    (mapProp (\test -> test{resultExpect = False}))
     (property p)
 
 -- ** Testable type class

@@ -10,13 +10,17 @@ module Test.Mutagen.Test.State
   , initMutagenState
 
     -- * State modifiers
+  , setExpect
   , setNextSeed
   , setCurrentGenSize
   , setAutoResetAfter
   , setRandomMutations
   , setPassedQueue
+  , updatePassedQueue
   , setDiscardedQueue
+  , updateDiscardedQueue
   , setFragmentStore
+  , updateFragmentStore
   , incNumTraceLogResets
   , incNumPassed
   , incNumDiscarded
@@ -36,16 +40,16 @@ module Test.Mutagen.Test.State
 where
 
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import Data.Typeable (TypeRep)
+import Test.Mutagen.Config (Config (..), DebugMode (..))
 import Test.Mutagen.Fragment
   ( FragmentStore
+  , FragmentTypeFilter
   , emptyFragmentStore
   , storeFragments
   )
 import Test.Mutagen.Mutant (MutantKind (..))
 import Test.Mutagen.Mutation (MutationOrder)
 import Test.Mutagen.Property (Args (..), Prop, Property (..))
-import Test.Mutagen.Test.Config (Config (..), DebugMode (..))
 import Test.Mutagen.Test.Queue (MutationQueue, emptyMutationQueue)
 import Test.Mutagen.Tracer.Metadata (loadTracerMetadata, numTracingNodes)
 import Test.Mutagen.Tracer.Store
@@ -89,7 +93,7 @@ data MutagenState
   -- ^ Mirrored from 'Config.randomFragments'
   , stUseFragments :: !Bool
   -- ^ Mirrored from 'Config.useFragments'
-  , stFilterFragments :: !(Maybe [TypeRep])
+  , stFilterFragments :: !FragmentTypeFilter
   -- ^ Mirrored from 'Config.filterFragments'
   , stMaxTraceLength :: !(Maybe Int)
   -- ^ Mirrored from 'Config.maxTraceLength'
@@ -223,6 +227,10 @@ initMutagenState cfg (Property gen argsRunner) = do
 
 -- ** Setters
 
+setExpect :: Bool -> MutagenState -> MutagenState
+setExpect val st =
+  st{stExpect = val}
+
 setNextSeed :: QCGen -> MutagenState -> MutagenState
 setNextSeed val st =
   st{stNextSeed = val}
@@ -243,13 +251,25 @@ setPassedQueue :: MutationQueue -> MutagenState -> MutagenState
 setPassedQueue val st =
   st{stPassedQueue = val}
 
+updatePassedQueue :: (MutationQueue -> MutationQueue) -> MutagenState -> MutagenState
+updatePassedQueue f st =
+  st{stPassedQueue = f (stPassedQueue st)}
+
 setDiscardedQueue :: MutationQueue -> MutagenState -> MutagenState
 setDiscardedQueue val st =
   st{stDiscardedQueue = val}
 
+updateDiscardedQueue :: (MutationQueue -> MutationQueue) -> MutagenState -> MutagenState
+updateDiscardedQueue f st =
+  st{stDiscardedQueue = f (stDiscardedQueue st)}
+
 setFragmentStore :: FragmentStore -> MutagenState -> MutagenState
 setFragmentStore val st =
   st{stFragmentStore = val}
+
+updateFragmentStore :: (FragmentStore -> FragmentStore) -> MutagenState -> MutagenState
+updateFragmentStore f st =
+  st{stFragmentStore = f (stFragmentStore st)}
 
 -- ** Incrementers
 

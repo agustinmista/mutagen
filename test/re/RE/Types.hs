@@ -8,40 +8,40 @@ import Data.String
 import Test.Mutagen
 import qualified Test.Mutagen.TH as TH
 
-----------------------------------------
--- Regular expressions
-
+-- | Regular expressions
 data RE a
-  = Nil
-  | Eps
-  | Atom a
-  | Star (RE a)
-  | Plus (RE a) (RE a)
-  | Seq (RE a) (RE a)
+  = -- | Matches nothing
+    Nil
+  | -- | Matches the empty string
+    Eps
+  | -- | Matches a single token
+    Atom a
+  | -- | Kleene star, matches zero or more repetitions of an expression
+    Star (RE a)
+  | -- | Alternation, matches either of the two expressions
+    Plus (RE a) (RE a)
+  | -- | Concatenation, matches the first expression followed by the second
+    Seq (RE a) (RE a)
   deriving (Eq, Ord, Show)
 
+-- Automatically derive Arbitrary, Mutable, Lazy, and Fragmentable instances
 TH.deriveAll ''RE
 
-----------------------------------------
--- ASCII characters: we don't want to use unicode
-
+-- | ASCII characters
+--
+-- This exists just so that we can avoid Unicode characters in our tests.
 newtype ASCII = ASCII Char
   deriving (Eq, Ord, Show)
 
 instance {-# OVERLAPS #-} IsString [ASCII] where
   fromString = fmap ASCII
 
-----------------------------------------
--- Boilerplate
-
--- ASCII are a bit special: we want it to behave just as Char.
-
 instance Arbitrary ASCII where
   arbitrary = ASCII <$> elements ['\x20' .. '\x7E']
 
 instance Mutable ASCII where
   def = ASCII def
-  inside [] mut = mut
+  inside pos mut | null pos = mut
   inside pos _ = error $ "inside: invalid position: " <> show pos
   mutate = const [Rand arbitrary]
 

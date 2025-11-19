@@ -4,7 +4,19 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Test.Mutagen.Fragment where
+module Test.Mutagen.Fragment
+  ( Fragment (..)
+  , FragmentStore (..)
+  , emptyFragmentStore
+  , fragmentStoreSize
+  , sampleFragments
+  , storeFragments
+  , printFragmentStore
+  , FragmentTypeFilter (..)
+  , Fragmentable (..)
+  , singleton
+  )
+where
 
 import Control.Monad
 import Data.Map (Map)
@@ -13,7 +25,6 @@ import Data.Maybe
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Typeable
--- For providing some default Fragmentable instances
 import Data.Word
 import Test.QuickCheck
 
@@ -46,8 +57,8 @@ newtype FragmentStore = FragmentStore (Map TypeRep (Set Fragment))
 
 fragmentStoreSize :: FragmentStore -> [(TypeRep, Int)]
 fragmentStoreSize (FragmentStore fs) =
-  [ (tr, Set.size frags)
-  | (tr, frags) <- Map.toList fs
+  [ (tyRep, Set.size frags)
+  | (tyRep, frags) <- Map.toList fs
   ]
 
 instance Semigroup FragmentStore where
@@ -59,30 +70,48 @@ instance Monoid FragmentStore where
 
 printFragmentStore :: FragmentStore -> IO ()
 printFragmentStore (FragmentStore fs) = do
-  forM_ (Map.assocs fs) $ \(tr, frags) -> do
-    putStrLn ("TypeRep: " <> show tr)
+  forM_ (Map.assocs fs) $ \(tyRep, frags) -> do
+    putStrLn ("TypeRep: " <> show tyRep)
     forM_ frags $ \frag -> do
       putStrLn ("* " <> show frag)
 
 emptyFragmentStore :: FragmentStore
 emptyFragmentStore = FragmentStore mempty
 
-insertFragment :: Maybe [TypeRep] -> TypeRep -> Fragment -> FragmentStore -> FragmentStore
-insertFragment Nothing tr fr (FragmentStore fs) =
-  FragmentStore (Map.insertWith Set.union tr (Set.singleton fr) fs)
-insertFragment (Just trs) tr fr (FragmentStore fs)
-  | tr `elem` trs = FragmentStore (Map.insertWith Set.union tr (Set.singleton fr) fs)
-  | otherwise = FragmentStore fs
+insertFragment
+  :: FragmentTypeFilter
+  -> TypeRep
+  -> Fragment
+  -> FragmentStore
+  -> FragmentStore
+insertFragment f tyRep fr (FragmentStore fs)
+  | isFragmentTypeAllowed f tyRep =
+      FragmentStore (Map.insertWith Set.union tyRep (Set.singleton fr) fs)
+  | otherwise =
+      FragmentStore fs
 
-collectFragments :: (Fragmentable a) => Maybe [TypeRep] -> a -> FragmentStore
-collectFragments allowed a = foldr (uncurry (insertFragment allowed)) emptyFragmentStore fts
+collectFragments
+  :: (Fragmentable a)
+  => FragmentTypeFilter
+  -> a
+  -> FragmentStore
+collectFragments f a = foldr (uncurry (insertFragment f)) emptyFragmentStore fts
   where
     fts = Set.map (\(Fragment x) -> (typeOf x, Fragment x)) (fragmentize a)
 
-storeFragments :: (Fragmentable a) => Maybe [TypeRep] -> a -> FragmentStore -> FragmentStore
-storeFragments allowed a fs = fs <> collectFragments allowed a
+storeFragments
+  :: (Fragmentable a)
+  => FragmentTypeFilter
+  -> a
+  -> FragmentStore
+  -> FragmentStore
+storeFragments f a fs = fs <> collectFragments f a
 
-sampleFragments :: (Typeable a) => a -> FragmentStore -> Gen [a]
+sampleFragments
+  :: (Typeable a)
+  => a
+  -> FragmentStore
+  -> Gen [a]
 sampleFragments a (FragmentStore fs) = do
   case Map.lookup (typeOf a) fs of
     Nothing ->
@@ -90,11 +119,29 @@ sampleFragments a (FragmentStore fs) = do
     Just frags ->
       mapMaybe (\(Fragment a') -> cast a') <$> shuffle (Set.toList frags)
 
--- sampleFragment :: TypeRep -> FragmentStore -> IO (Maybe Fragment)
--- sampleFragment tr (FragmentStore fs) = do
---   case Map.lookup tr fs of
---     Nothing -> return Nothing
---     Just frags -> Just <$> generate (elements (Set.toList frags))
+-- ** Fragment type filters
+
+-- | Fragment type allow and deny lists
+data FragmentTypeFilter = FragmentTypeFilter
+  { allowList :: Set TypeRep
+  -- ^ List of allowed fragment types
+  , denyList :: Set TypeRep
+  -- ^ List of denied fragment types
+  }
+  deriving (Eq, Show)
+
+instance Semigroup FragmentTypeFilter where
+  (FragmentTypeFilter a1 d1) <> (FragmentTypeFilter a2 d2) =
+    FragmentTypeFilter (a1 <> a2) (d1 <> d2)
+
+instance Monoid FragmentTypeFilter where
+  mempty = FragmentTypeFilter mempty mempty
+
+-- | Check if a type is allowed by the fragment type filter
+isFragmentTypeAllowed :: FragmentTypeFilter -> TypeRep -> Bool
+isFragmentTypeAllowed (FragmentTypeFilter allow deny) tr =
+  (tr `Set.member` allow)
+    && not (tr `Set.member` deny)
 
 ----------------------------------------
 -- Fragmentizing values
@@ -107,19 +154,6 @@ class (IsFragment a) => Fragmentable a where
 
 singleton :: (Fragmentable a) => a -> Set Fragment
 singleton = Set.singleton . Fragment
-
-----------------------------------------
--- Replacing a subexpression within a value with a random fragmentize
-
--- replacePosWithFragment :: (Mutable a, Fragmentable a) => FragmentStore -> Pos -> Mutation a
--- replacePosWithFragment (FragmentStore fs) pos = inside pos $ \a ->
---   case Map.lookup (typeOf a) fs of
---     Nothing -> []
---     Just frags ->
---       [ Random $ do
---           Fragment a' <- elements (Set.toList frags)
---           return (maybe a id (cast a'))
---       ]
 
 ----------------------------------------
 -- Fragmentable instances

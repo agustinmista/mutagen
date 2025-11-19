@@ -8,6 +8,7 @@ module Test.Mutagen.Tracer.Trace
   , resetTraceRef
   , readTraceRef
   , withTrace
+  , truncateTrace
   )
 where
 
@@ -62,3 +63,8 @@ withTrace io = do
   a <- io
   tr <- readTraceRef
   return (a, tr)
+
+-- Truncate a trace to a given length
+truncateTrace :: Int -> Trace -> Trace
+truncateTrace n (Trace entries) =
+  Trace (take n entries)

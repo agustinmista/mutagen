@@ -13,12 +13,12 @@ module Test.Mutagen.Test.Driver
   )
 where
 
-import Control.Monad
-import Test.Mutagen.Property
-import Test.Mutagen.Test.Config
-import Test.Mutagen.Test.Loop
-import Test.Mutagen.Test.Report
-import Test.Mutagen.Test.State
+import Control.Monad (void)
+import Test.Mutagen.Config (Config (..), defaultConfig)
+import Test.Mutagen.Property (Testable (..))
+import Test.Mutagen.Report (Report)
+import Test.Mutagen.Test.Loop (loop)
+import Test.Mutagen.Test.State (initMutagenState)
 
 {-------------------------------------------------------------------------------
 -- * Test drivers
@@ -47,7 +47,4 @@ mutagenWith cfg p = void (mutagenWithReport cfg p)
 -- | Run Mutagen with a custom configuration, returning a report
 mutagenWithReport :: (Testable p) => Config -> p -> IO Report
 mutagenWithReport cfg p = do
-  -- Create the initial internal state
-  st <- initMutagenState cfg (property p)
-  -- Go go go!
-  loop runTestCase st
+  initMutagenState cfg (property p) >>= loop

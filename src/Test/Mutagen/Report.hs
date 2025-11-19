@@ -1,5 +1,5 @@
 -- | Testing reports
-module Test.Mutagen.Test.Report
+module Test.Mutagen.Report
   ( -- * Testing reports
     Report (..)
   , isSuccess
@@ -14,13 +14,15 @@ import Test.Mutagen.Property
 
 -- | Testing report
 data Report
-  = Success
+  = -- | The property passed all tests
+    Success
       { numPassed :: Int
       -- ^ Number of passed tests
       , numDiscarded :: Int
       -- ^ Number of discarded tests
       }
-  | Counterexample
+  | -- | The property failed for the given arguments
+    Counterexample
       { numPassed :: Int
       -- ^ Number of passed tests
       , numDiscarded :: Int
@@ -28,7 +30,8 @@ data Report
       , failingArgs :: Args
       -- ^ Failing arguments
       }
-  | GaveUp
+  | -- | The testing loop gave up before completing all tests
+    GaveUp
       { numPassed :: Int
       -- ^ Number of passed tests
       , numDiscarded :: Int
@@ -36,7 +39,8 @@ data Report
       , reason :: String
       -- ^ Reason for giving up
       }
-  | NoExpectedFailure
+  | -- | The property was expected to fail, but all tests passed
+    NoExpectedFailure
       { numPassed :: Int
       -- ^ Number of passed tests
       , numDiscarded :: Int

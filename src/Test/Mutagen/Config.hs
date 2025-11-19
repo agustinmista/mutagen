@@ -3,55 +3,56 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Test.Mutagen.Test.Config
+-- | Configuration options for Mutagen
+module Test.Mutagen.Config
   ( -- * Configuration options
-    DebugMode (..)
-  , Config (..)
+    Config (..)
   , defaultConfig
 
     -- * Helpers
   , allow
+  , allow'
+  , deny
+  , deny'
   , example
+  , DebugMode (..)
 
     -- * Re-exports
+  , FragmentTypeFilter
   , TraceType (..)
   )
 where
 
-import Data.Typeable
-import Test.Mutagen.Mutation
+import qualified Data.Set as Set
+import Data.Typeable (Proxy (..), Typeable, typeRep)
+import Test.Mutagen.Fragment (FragmentTypeFilter (..))
+import Test.Mutagen.Mutation (MutationOrder, levelorder)
 import Test.Mutagen.Property (Args (..), IsArgs)
 import Test.Mutagen.Tracer.Store (TraceType (..))
 
-----------------------------------------
+{-------------------------------------------------------------------------------
+-- * Configuration options
+-------------------------------------------------------------------------------}
 
-data DebugMode = NoDebug | StopOnPassed | AlwaysStop
-  deriving (Eq, Show)
-
+-- | Configuration options for Mutagen
 data Config
   = Config
-  ----------------------------------------
-  -- Campaign options
   { maxSuccess :: Int
-  -- ^ Max number of passed tests
+  -- ^ Max number of passed tests.
   , maxDiscardRatio :: Int
-  -- ^ Max discard ratio
+  -- ^ Max discard ratio.
   , timeout :: Maybe Integer
-  -- ^ Campaign time budget in seconds (has precedence over maxSuccess)
+  -- ^ Campaign time budget in seconds (has precedence over maxSuccess).
   , expect :: Bool
   -- ^ Whether the property is expected to hold (True) or to fail (False).
-  , ----------------------------------------
-    -- Generation options
-    maxGenSize :: Int
+  , maxGenSize :: Int
   -- ^ Max generation size passed to a generator. It uses the same formula for
   -- computing sizes as vanilla QuickCheck when in generation mode. Random
   -- mutations are generated using the maximum size.
-  , ----------------------------------------
-    -- Mutation options
-    randomMutations :: Int
-  -- ^ The amount of times to sample the generator associated to a random
-  -- mutant. It can be automatically increased over time if `autoResetAfter` is not
-  -- set to `Nothing`.
+  , randomMutations :: Int
+  -- ^ Number of times to sample the generator associated to a random mutant.
+  -- It can be automatically increased over time if `autoResetAfter` is not set
+  -- to `Nothing`.
   , mutationLimit :: Maybe Int
   -- ^ The maximum number of ancestors a test case can have before being
   -- discarded. Useful to avoid mutating recursive structures indefinetely.
@@ -78,29 +79,26 @@ data Config
   -- concretizing a fragment mutant. Can return less than `randomFragments` test
   -- cases if there are not enough fragments of the type of the target
   -- subexpression to sample from.
-  , filterFragments :: Maybe [TypeRep]
-  -- ^ If not set to `Nothing`, the loop collect and use fragments of only some
-  -- specific types.
+  , filterFragments :: FragmentTypeFilter
+  -- ^ Filter to allow or deny values of certain types from being saved in the
+  -- fragment store.
   , examples :: [Args]
   -- ^ Initial inputs examples used to populate the global fragment store before
   -- the testing loop starts.
-  , ----------------------------------------
-    -- Tracing options
-    traceType :: TraceType
+  , traceType :: TraceType
   -- ^ The tracing log mechanism. Either `Tree` or `Bitmap`. `Tree` uses
   -- prefix-based traces (quite expensive but more precise). `Bitmap` uses
   -- edge-based traces (cheaper but less precise).
   , maxTraceLength :: Maybe Int
   -- ^ The maximim trace length to consider. Useful in conjunction with the
   -- `Tree` `traceMethod` when testing lengthy properties.
-  , ----------------------------------------
-    -- Debug options
-    chatty :: Bool
-  -- ^ Print extra info
+  , chatty :: Bool
+  -- ^ Print extra info.
   , debug :: DebugMode
-  -- ^ Stop after every step and wait for the user to press Enter.
+  -- ^ Whether to enable interactive debugging mode.
   }
 
+-- | Default configuration options for Mutagen
 defaultConfig :: Config
 defaultConfig =
   Config
@@ -116,7 +114,7 @@ defaultConfig =
     , mutationOrder = levelorder
     , useFragments = False
     , randomFragments = 10
-    , filterFragments = Nothing
+    , filterFragments = mempty
     , examples = []
     , traceType = Bitmap
     , maxTraceLength = Nothing
@@ -124,8 +122,38 @@ defaultConfig =
     , debug = NoDebug
     }
 
-allow :: forall a. (Typeable a) => TypeRep
-allow = typeRep (Proxy @a)
+{-------------------------------------------------------------------------------
+-- * Helpers
+-------------------------------------------------------------------------------}
 
+-- | Allow a type to be saved in the fragment store
+allow :: forall a. (Typeable a) => FragmentTypeFilter
+allow = FragmentTypeFilter (Set.singleton (typeRep (Proxy @a))) mempty
+
+-- | Like 'allow' but taking a 'Proxy' argument
+allow' :: forall a. (Typeable a) => Proxy a -> FragmentTypeFilter
+allow' _ = allow @a
+
+-- | Deny a type from being saved in the fragment store
+deny :: forall a. (Typeable a) => FragmentTypeFilter
+deny = FragmentTypeFilter mempty (Set.singleton (typeRep (Proxy @a)))
+
+-- | Like 'deny' but taking a 'Proxy' argument
+deny' :: forall a. (Typeable a) => Proxy a -> FragmentTypeFilter
+deny' _ = deny @a
+
+-- | Helper to create an example input of any supported argument type
 example :: forall a. (IsArgs a) => a -> Args
 example = Args
+
+-- | Debugging mode
+--
+-- Allows stopping the loop between test cases to inspect the internal state.
+data DebugMode
+  = -- | Run normally without stopping between tests
+    NoDebug
+  | -- | Stop after every passed test case
+    StopOnPassed
+  | -- | Stop after every test case (passed or discarded)
+    AlwaysStop
+  deriving (Eq, Show)

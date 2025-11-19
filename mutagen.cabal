@@ -33,38 +33,37 @@ flag MUTAGEN_PLUGIN_DEBUG
 library
   exposed-modules:
     Test.Mutagen
-    Test.Mutagen.Property
+    Test.Mutagen.Config
+    Test.Mutagen.Exception
+    Test.Mutagen.Fragment
+    Test.Mutagen.Lazy
     Test.Mutagen.Mutant
     Test.Mutagen.Mutation
-    Test.Mutagen.Fragment
-    Test.Mutagen.Exception
-    Test.Mutagen.Lazy
+    Test.Mutagen.Property
+    Test.Mutagen.Report
     Test.Mutagen.Shell
     Test.Mutagen.TH
     Test.Mutagen.Tracer
     Test.Mutagen.Tracer.Plugin
   other-modules:
-    Test.Mutagen.Test
-    Test.Mutagen.Test.Config
-    Test.Mutagen.Test.State
+    Test.Mutagen.TH.Arbitrary
+    Test.Mutagen.TH.Fragmentable
+    Test.Mutagen.TH.Lazy
+    Test.Mutagen.TH.Mutable
+    Test.Mutagen.TH.Util
+    Test.Mutagen.Test.Driver
     Test.Mutagen.Test.Loop
     Test.Mutagen.Test.Queue
-    Test.Mutagen.Test.Report
-    Test.Mutagen.Test.Driver
+    Test.Mutagen.Test.State
     Test.Mutagen.Test.Terminal
-    Test.Mutagen.TH.Arbitrary
-    Test.Mutagen.TH.Mutable
-    Test.Mutagen.TH.Lazy
-    Test.Mutagen.TH.Fragmentable
-    Test.Mutagen.TH.Util
     Test.Mutagen.Tracer.Annotation
-    Test.Mutagen.Tracer.Trace
+    Test.Mutagen.Tracer.Metadata
     Test.Mutagen.Tracer.Store
     Test.Mutagen.Tracer.Store.API
     Test.Mutagen.Tracer.Store.Bitmap
     Test.Mutagen.Tracer.Store.Tree
     Test.Mutagen.Tracer.Store.Types
-    Test.Mutagen.Tracer.Metadata
+    Test.Mutagen.Tracer.Trace
   hs-source-dirs:
     src
   build-depends:
@@ -72,6 +71,7 @@ library
     , aeson
     , ansi-terminal
     , array
+    , brick
     , containers
     , directory
     , extra
@@ -88,6 +88,8 @@ library
     , template-haskell
     , th-desugar
     , time
+    , vector
+    , vty
   ghc-options:
     -Wall -Werror
   default-extensions:
@@ -109,11 +111,10 @@ test-suite test-re
   other-modules:
     RE.Types
     RE.Match
-    RE.Spec
   default-language:
     Haskell2010
   ghc-options:
-    -Wall -Werror -O2 -threaded
+    -Wall -O2 -threaded
   build-depends:
       base >=4.18 && <5
     , mutagen
