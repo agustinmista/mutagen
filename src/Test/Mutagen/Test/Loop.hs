@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
@@ -12,6 +13,7 @@ where
 
 import Control.Monad
 import Control.Monad.Extra (ifM)
+import Control.Monad.IO.Class (MonadIO (..))
 import Data.Function ((&))
 import System.Random (split)
 import Test.Mutagen.Config (DebugMode (..))
@@ -38,7 +40,9 @@ import Test.QuickCheck.Gen (unGen)
 ----------------------------------------
 -- The main test loop
 
-loop :: MutagenState -> IO Report
+type MonadMutagen m = (MonadIO m, MonadTerminal m)
+
+loop :: (MonadMutagen m) => MutagenState -> m Report
 loop st
   -- We reached the max number of tests
   | stNumPassed st >= stMaxSuccess st =
@@ -51,7 +55,7 @@ loop st
   -- The time bugdet is over, we check this every so often
   | (stNumPassed st + stNumDiscarded st) `mod` 100 == 0 =
       ifM
-        (timedOut st)
+        (liftIO (timedOut st))
         (giveUp st "timeout")
         (newTest st)
   -- Reset the trace log if we havent enqueued anything interesting in a while
@@ -60,8 +64,8 @@ loop st
       && mutationQueueSize (stPassedQueue st) == 0
       && mutationQueueSize (stDiscardedQueue st) == 0 =
       do
-        withPassedTraceStore st resetTraceStore
-        withDiscardedTraceStore st resetTraceStore
+        withPassedTraceStore st (liftIO . resetTraceStore)
+        withDiscardedTraceStore st (liftIO . resetTraceStore)
         let st' =
               st
                 & setAutoResetAfter (maybe (stAutoResetAfter st) (Just . (* 2)) (stAutoResetAfter st))
@@ -74,9 +78,9 @@ loop st
       newTest st
 
 -- Testing is no more
-success :: MutagenState -> IO Report
+success :: (MonadMutagen m) => MutagenState -> m Report
 success st = do
-  printMessage "Done testing"
+  message "Done testing"
   return
     Success
       { numPassed = stNumPassed st
@@ -84,9 +88,9 @@ success st = do
       }
 
 -- Too many discarded tests
-giveUp :: MutagenState -> String -> IO Report
+giveUp :: (MonadMutagen m) => MutagenState -> String -> m Report
 giveUp st gaveUpReason = do
-  printMessage $ "Gave up: " <> gaveUpReason
+  message $ "Gave up: " <> gaveUpReason
   return
     GaveUp
       { reason = gaveUpReason
@@ -95,18 +99,18 @@ giveUp st gaveUpReason = do
       }
 
 -- Found a bug!
-counterexample :: MutagenState -> Args -> Result -> IO Report
+counterexample :: (MonadMutagen m) => MutagenState -> Args -> Result -> m Report
 counterexample st args result = do
-  printMessage "Found counterexample!"
-  printTestCase args
-  printMessage "*** Reason of failure:"
+  message "Found counterexample!"
+  pretty args
+  message "*** Reason of failure:"
   case resultReason result of
-    Just failureReason -> printMessage failureReason
-    Nothing -> printMessage "assertion failed"
+    Just failureReason -> message failureReason
+    Nothing -> message "assertion failed"
   case resultException result of
     Just exc -> do
-      printMessage "*** The exception was:"
-      printMessage (show exc)
+      message "*** The exception was:"
+      message (show exc)
     Nothing -> return ()
   return
     Counterexample
@@ -115,9 +119,9 @@ counterexample st args result = do
       , failingArgs = args
       }
 
-noExpectedFailure :: MutagenState -> IO Report
+noExpectedFailure :: (MonadMutagen m) => MutagenState -> m Report
 noExpectedFailure st = do
-  printMessage "Expected failure did not occur!"
+  message "Expected failure did not occur!"
   return
     NoExpectedFailure
       { numPassed = stNumPassed st
@@ -125,14 +129,14 @@ noExpectedFailure st = do
       }
 
 -- Generate and run a new test
-newTest :: MutagenState -> IO Report
+newTest :: (MonadMutagen m) => MutagenState -> m Report
 newTest st = do
   -- pick a new test case
   (args, parent, st') <- pickNextTestCase st
   -- run the test case
   (result, st'') <- runTestCase parent args st'
   -- Print stats if necessary
-  printGlobalStats st''
+  if stChatty st'' then printGlobalStats st'' else printShortStats st''
   -- Stop on debug mode if necessary
   stopOnDebugMode (stDebug st'') result
   -- check the test result and report a counterexample or continue
@@ -151,30 +155,30 @@ newTest st = do
         AlwaysStop -> awaitForUserInput
         _ -> return ()
     awaitForUserInput = do
-      putStrLn "Press enter to continue ..."
-      void getLine
+      message "Press enter to continue ..."
+      void (liftIO getLine)
 
 ----------------------------------------
 -- Test case runners
 
-runTestCase :: Maybe (MutationBatch Args) -> Args -> MutagenState -> IO (Result, MutagenState)
+runTestCase :: (MonadMutagen m) => Maybe (MutationBatch Args) -> Args -> MutagenState -> m (Result, MutagenState)
 runTestCase parent args st = do
   when (stChatty st) $ do
-    printMessage "Running test case..."
+    message "Running test case..."
   -- Run the test case
-  (result, trace, evaluatedPos) <- execArgsRunner st args
+  (result, trace, evaluatedPos) <- liftIO $ execArgsRunner st args
   -- Truncate the trace if necessary
   let trace' = maybe trace (flip truncateTrace trace) (stMaxTraceLength st)
   when (stChatty st) $ do
     case evaluatedPos of
       Just pos -> do
-        printMessage "Evaluated subexpressions:"
-        printPos pos
+        message "Evaluated subexpressions:"
+        pretty pos
       Nothing -> do
         return () -- lazy prunning is disabled
         -- Print the trace of the mutated test case
-    printMessage "Test case trace:"
-    printTrace trace'
+    message "Test case trace:"
+    pretty (unTrace trace')
   -- Extract property modifiers
   let addPropertyModifiers =
         setExpect (resultExpect result)
@@ -183,7 +187,7 @@ runTestCase parent args st = do
     -- Boom!
     Failed -> do
       when (stChatty st) $ do
-        printMessage "Test result: FAILED"
+        message "Test result: FAILED"
       -- Report the counterexample
       return
         ( result
@@ -192,9 +196,9 @@ runTestCase parent args st = do
     -- Test passed, lotta work to do now
     Passed -> do
       when (stChatty st) $ do
-        printMessage "Test result: PASSED"
+        message "Test result: PASSED"
       -- Save the trace in the corresponding trace store
-      (new, prio) <- savePassedTraceWithPrio st trace'
+      (new, prio) <- liftIO (savePassedTraceWithPrio st trace')
       -- Evaluate whether the test case was interesting or not depending on
       -- whether it added new trace nodes or not
       let interesting = new > 0
@@ -204,7 +208,7 @@ runTestCase parent args st = do
         if interesting
           then do
             when (stChatty st) $ do
-              printMessage "Test case was interesting!"
+              message "Test case was interesting!"
             let candidate = createMutationCandidate trace evaluatedPos True
             return
               $ st
@@ -227,9 +231,9 @@ runTestCase parent args st = do
     -- Test discarded, lotta work to do here too
     Discarded -> do
       when (stChatty st) $ do
-        printMessage "Test result: DISCARDED"
+        message "Test result: DISCARDED"
       -- Save the trace in the corresponding trace log
-      (new, prio) <- saveDiscardedTraceWithPrio st trace'
+      (new, prio) <- liftIO (saveDiscardedTraceWithPrio st trace')
       -- Evaluate whether the test case was interesting or not
       --
       -- NOTE: in this case, we only consider discarded test cases interesting
@@ -237,7 +241,7 @@ runTestCase parent args st = do
       -- passed the property and was not discarded.
       let interesting = new > 0 && maybe False mbTestPassed parent
       when (stChatty st && interesting) $ do
-        printMessage "Test case was interesting!"
+        message "Test case was interesting!"
       -- As above, here we also update the internal state depending on whether
       -- the test case was interesting or not
       st' <-
@@ -434,7 +438,7 @@ execArgsRunner st args
 -- Select a new test, mutating and existing interesting one or generating a
 -- brand new otherwise.
 
-pickNextTestCase :: MutagenState -> IO (Args, Maybe (MutationBatch Args), MutagenState)
+pickNextTestCase :: (MonadMutagen m) => MutagenState -> m (Args, Maybe (MutationBatch Args), MutagenState)
 pickNextTestCase st
   -- We can run a mutation of an interesting succesful test case
   | mutationQueueSize (stPassedQueue st) > 0 = mutateFromPassed st
@@ -443,16 +447,16 @@ pickNextTestCase st
   -- Only choice left is to generate a brand new test
   | otherwise = generateNewTest st
 
-generateNewTest :: MutagenState -> IO (Args, Maybe (MutationBatch Args), MutagenState)
+generateNewTest :: (MonadMutagen m) => MutagenState -> m (Args, Maybe (MutationBatch Args), MutagenState)
 generateNewTest st = do
   -- First we compute an appropriate generation size
   let size = computeSize st
   -- Then we randomly generate a lazily evaluated test
   let (rnd1, rnd2) = split (stNextSeed st)
   let args = unGen (stArgsGen st) rnd1 size
-  if stChatty st
-    then printMessage "Generated test case" >> printTestCase args
-    else printDot
+  when (stChatty st) $ do
+    message "Generated test case"
+    pretty args
   -- Put the new random seed in the state
   let st' =
         st
@@ -461,22 +465,21 @@ generateNewTest st = do
           & incNumGenerated
   return (args, Nothing, st')
 
-mutateFromPassed :: MutagenState -> IO (Args, Maybe (MutationBatch Args), MutagenState)
+mutateFromPassed :: (MonadMutagen m) => MutagenState -> m (Args, Maybe (MutationBatch Args), MutagenState)
 mutateFromPassed st = do
   let (prio, candidate, rest) = dequeueNextMutationCandidate (stPassedQueue st)
-  next <- nextMutation (stFragmentStore st) (mcBatch candidate)
+  next <- liftIO $ nextMutation (stFragmentStore st) (mcBatch candidate)
   case next of
     Nothing -> do
       let st' = st & setPassedQueue rest
       pickNextTestCase st'
     Just (args', mk', mbatch') -> do
       when (stChatty st) $ do
-        printMessage "Mutating from passed test case:"
+        message "Mutating from passed test case:"
+        pretty (mcArgs candidate)
+        message "Mutated test case:"
+        pretty args'
         printBatchStatus mbatch'
-        printMessage "* Original test case:"
-        printTestCase (mcArgs candidate)
-        printMessage "* Mutated test case"
-        printTestCase args'
       let st' =
             st
               & incMutantKindCounter mk'
@@ -484,22 +487,21 @@ mutateFromPassed st = do
               & setPassedQueue (enqueueMutationCandidate prio candidate{mcBatch = mbatch'} rest)
       return (args', Just mbatch', st')
 
-mutateFromDiscarded :: MutagenState -> IO (Args, Maybe (MutationBatch Args), MutagenState)
+mutateFromDiscarded :: (MonadMutagen m) => MutagenState -> m (Args, Maybe (MutationBatch Args), MutagenState)
 mutateFromDiscarded st = do
   let (prio, candidate, rest) = dequeueNextMutationCandidate (stDiscardedQueue st)
-  next <- nextMutation (stFragmentStore st) (mcBatch candidate)
+  next <- liftIO $ nextMutation (stFragmentStore st) (mcBatch candidate)
   case next of
     Nothing -> do
       let st' = st & setDiscardedQueue rest
       pickNextTestCase st'
     Just (args', mk', mbatch') -> do
       when (stChatty st) $ do
-        printMessage "Mutating from discarded test case:"
+        message "Mutating from discarded test case:"
+        pretty (mcArgs candidate)
+        message "Mutated test case:"
+        pretty args'
         printBatchStatus mbatch'
-        printMessage "* Original test case:"
-        printTestCase (mcArgs candidate)
-        printMessage "* Mutated test case"
-        printTestCase args'
       let st' =
             st
               & incMutantKindCounter mk'

@@ -19,6 +19,7 @@ import Test.Mutagen.Property (Testable (..))
 import Test.Mutagen.Report (Report)
 import Test.Mutagen.Test.Loop (loop)
 import Test.Mutagen.Test.State (initMutagenState)
+import Test.Mutagen.Test.Terminal (brickTUI, stdoutTUI, withTerminalT)
 
 {-------------------------------------------------------------------------------
 -- * Test drivers
@@ -47,4 +48,6 @@ mutagenWith cfg p = void (mutagenWithReport cfg p)
 -- | Run Mutagen with a custom configuration, returning a report
 mutagenWithReport :: (Testable p) => Config -> p -> IO Report
 mutagenWithReport cfg p = do
-  initMutagenState cfg (property p) >>= loop
+  st <- initMutagenState cfg (property p)
+  ui <- if tui cfg then brickTUI else stdoutTUI
+  withTerminalT ui (loop st)

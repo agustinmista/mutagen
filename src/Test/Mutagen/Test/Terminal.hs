@@ -1,18 +1,27 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- | Terminal UI
 module Test.Mutagen.Test.Terminal
-  ( -- * Terminal UI
-    startTUI
+  ( -- * Generic TUI interface
+    TUI
+  , TerminalT
+  , withTerminalT
+  , MonadTerminal (..)
 
-    -- * Pretty printers
-  , printDot
-  , printPos
-  , printTestCase
-  , printTrace
-  , printMessage
+    -- * Basic stdout TUI
+  , stdoutTUI
+
+    -- * Brick-based
+  , brickTUI
+
+    -- * Derived printers
   , printGlobalStats
+  , printShortStats
   , printBatchStatus
 
     -- * Helpers
@@ -26,37 +35,95 @@ import qualified Brick
 import qualified Brick.Widgets.Border as Brick
 import Brick.Widgets.List (List)
 import qualified Brick.Widgets.List as Brick
-import Control.Monad (void)
+import Control.Monad (forM_, void)
+import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Reader (ReaderT (..), ask, lift)
+import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.Vector as Vector
 import Graphics.Vty (Event (..), Key (..), Modifier (..))
 import qualified Graphics.Vty as Vty
-import System.Console.ANSI (cursorUp)
-import System.IO (hFlush, stdout)
-import Test.Mutagen.Mutation (Pos)
+import Test.Mutagen.Fragment (fragmentStoreSize)
 import Test.Mutagen.Property (Args)
-import Test.Mutagen.Test.Queue (MutationBatch (..))
+import Test.Mutagen.Test.Queue (MutationBatch (..), mutationQueueSize)
 import Test.Mutagen.Test.State (MutagenState (..))
-import Test.Mutagen.Tracer.Trace (Trace (..))
 import Text.Pretty.Simple
   ( CheckColorTty (..)
   , OutputOptions (..)
   , defaultOutputOptionsDarkBg
   , pPrintOpt
   )
-import Text.Printf (printf)
 
 {-------------------------------------------------------------------------------
--- * Terminal UI
+-- * Generic terminal interface
 -------------------------------------------------------------------------------}
 
+-- | Generic terminal UI interface
+data TUI m = TUI
+  { tuiMessage :: String -> m ()
+  -- ^ Print a message to the terminal
+  , tuiPretty :: forall a. (Show a) => a -> m ()
+  -- ^ Pretty-print a value to the terminal
+  }
+
+-- | 'TerminalT' monad transformer
+newtype TerminalT m a = TerminalT {runTerminalT :: ReaderT (TUI m) m a}
+  deriving (Applicative, Functor, Monad, MonadIO)
+
+-- | Run a 'TerminalT' action with the given 'TUI'
+withTerminalT :: TUI m -> TerminalT m a -> m a
+withTerminalT tui = flip runReaderT tui . runTerminalT
+
+-- | Monad class for terminal interactions
+class (Monad m) => MonadTerminal m where
+  message :: String -> m ()
+  pretty :: forall a. (Show a) => a -> m ()
+
+instance (Monad m) => MonadTerminal (TerminalT m) where
+  message msg = TerminalT $ do
+    tui <- ask
+    lift $ tuiMessage tui msg
+  pretty val = TerminalT $ do
+    tui <- ask
+    lift $ tuiPretty tui val
+
+{-------------------------------------------------------------------------------
+-- * Basic stdout terminal interface
+-------------------------------------------------------------------------------}
+
+-- | A basic TUI that prints to stdout
+stdoutTUI :: IO (TUI IO)
+stdoutTUI =
+  return
+    $ TUI
+      { tuiMessage = putStrLn
+      , tuiPretty = compactPrint
+      }
+
+{-------------------------------------------------------------------------------
+-- * Brick-based TUI implementation
+-------------------------------------------------------------------------------}
+
+-- | A TUI implementation using the Brick library
+brickTUI :: IO (TUI IO)
+brickTUI = do
+  startTUI
+  return
+    $ TUI
+      { tuiMessage = const (return ())
+      , tuiPretty = const (return ())
+      }
+
+-- | Names for Brick widgets
 data Name = TopLog | BottomLog
   deriving (Eq, Ord, Show)
 
+-- | State of the TUI
 data TUIState = TUIState
   { tuiTopLog :: List Name String
   , tuiBottomLog :: List Name String
   }
 
+-- | Start the Brick-based TUI
 startTUI :: IO ()
 startTUI =
   void $ Brick.defaultMain theApp initialState
@@ -104,234 +171,120 @@ startTUI =
       _ -> return ()
 
 {-------------------------------------------------------------------------------
--- * Pretty printers
+-- * Derived printers
 -------------------------------------------------------------------------------}
 
--- | Print a dot to indicate progress
-printDot :: IO ()
-printDot = printf "." >> hFlush stdout
-
--- | Print a 'Pos'
-printPos :: [Pos] -> IO ()
-printPos = compactPrint
-
--- | Print a test case
-printTestCase :: Args -> IO ()
-printTestCase = compactPrint
-
--- | Print a 'Trace'
-printTrace :: Trace -> IO ()
-printTrace = compactPrint . unTrace
-
--- | Print a message
-printMessage :: String -> IO ()
-printMessage = printf ">>> %s\n"
-
 -- | Print the status of the current mutation batch
-printBatchStatus :: MutationBatch Args -> IO ()
-printBatchStatus mbatch = do
-  printf
-    ">>> Current mutation batch: %d tests enqueued, %d mutations levels left\n"
-    (length (mbCurrBatch mbatch))
-    (mbMaxMutationDepth mbatch)
-  printf "*** Mutated positions:\n"
-  mapM_
-    (\pos -> putStrLn (show pos <> " *"))
-    (reverse (mbPastPositions mbatch))
-  case mbNextPositions mbatch of
+printBatchStatus :: (MonadTerminal m) => MutationBatch Args -> m ()
+printBatchStatus batch = do
+  message $ "Current mutation batch:"
+  -- past positions
+  forM_ (reverse (mbPastPositions batch)) $ \pos ->
+    pretty pos
+  case mbNextPositions batch of
     [] -> return ()
     (p : ps) -> do
-      putStrLn (show p <> " <== current")
-      mapM_ print ps
+      message "================"
+      pretty p
+      message
+        $ "("
+          <> show (length (mbCurrBatch batch))
+          <> " mutants left)"
+      message "================"
+      forM_ ps $ \pos ->
+        pretty pos
 
 -- | Print global statistics about the testing session
-printGlobalStats :: MutagenState -> IO ()
+printGlobalStats :: (MonadIO m, MonadTerminal m) => MutagenState -> m ()
 printGlobalStats st = do
-  cursorUp 1
-  printMessage
-    $ show (stNumPassed st)
-      <> " passed, "
-      <> show (stNumDiscarded st)
-      <> " discarded, "
-      <> show (stNumGenerated st)
-      <> " generated, "
-      <> show (stNumMutatedFromPassed st, stNumMutatedFromDiscarded st)
-      <> " mutated, "
+  message
+    "=== Statistics ==="
+  message
+    $ "* Ran "
+      <> show (stNumPassed st + stNumDiscarded st)
+      <> " tests ("
       <> show (stNumInteresting st)
       <> " interesting, "
       <> show (stNumBoring st)
-      <> " boring, "
+      <> " boring) (last interesting was "
       <> show (stNumTestsSinceLastInteresting st)
-      <> " tests since last interesting, "
+      <> " tests ago)"
+  message
+    $ "* Passed "
+      <> show (stNumPassed st)
+      <> " tests ("
+      <> show (stNumDiscarded st)
+      <> " discarded)"
+  message
+    $ "* Tests origin: "
+      <> show (stNumGenerated st)
+      <> " generated, "
+      <> show (stNumMutatedFromPassed st)
+      <> " mutated from passed, "
+      <> show (stNumMutatedFromDiscarded st)
+      <> " mutated from discarded"
+  message
+    $ "* Mutant kinds: "
+      <> show (stNumPureMutants st)
+      <> " pure, "
+      <> show (stNumRandMutants st)
+      <> " random, "
+      <> show (stNumFragMutants st)
+      <> " fragments"
+  message
+    $ "* Enqueued tests for mutation: "
+      <> show (mutationQueueSize (stPassedQueue st))
+      <> " passed, "
+      <> show (mutationQueueSize (stDiscardedQueue st))
+      <> " discarded"
+  message
+    $ "* Auto-reset is "
+      <> maybe "off" (const "on") (stAutoResetAfter st)
+      <> ", using "
+      <> show (stRandomMutations st)
+      <> " random mutations (after "
       <> show (stNumTraceLogResets st)
-      <> " trace log resets"
+      <> " trace log resets)"
+  message
+    $ "* Current generation size: "
+      <> show (stCurrentGenSize st)
+  message
+    $ "* Fragment store size: "
+      <> show (fragmentStoreSize (stFragmentStore st))
+  now <- round <$> liftIO getPOSIXTime
+  let elapsed = now - stStartTime st
+  message
+    $ "* Elapsed time: "
+      <> show elapsed
+      <> " seconds (+/- 1 second)"
+  message
+    "=================="
 
--- -- | Print a message indicating that a test is running
--- printRunningTest :: IO ()
--- printRunningTest = do
---   printf ">>> Running test...\n"
+printShortStats :: (MonadTerminal m) => MutagenState -> m ()
+printShortStats st = do
+  let total = stNumPassed st + stNumDiscarded st
+  message
+    $ "Ran "
+      <> show total
+      <> " tests ("
+      <> show (percentage stNumPassed total)
+      <> "% passed, "
+      <> show (percentage stNumInteresting total)
+      <> "% interesting, "
+      <> show (percentage stNumGenerated total)
+      <> "% generated, "
+      <> show (percentage (\s -> stNumMutatedFromPassed s + stNumMutatedFromDiscarded s) total)
+      <> "% mutated)"
+  where
+    percentage :: (MutagenState -> Int) -> Int -> Int
+    percentage f n = round @Double ((fromIntegral (f st) / fromIntegral n) * 100)
 
--- ** Detail printers
-
--- -- | Print evaluated subexpressions
--- printEvaluatedSubexpressions :: [Pos] -> IO ()
--- printEvaluatedSubexpressions pos = do
---   printf ">>> Evaluated subexpressions:\n"
---   print pos
---
--- -- | Print that a test case was interesting
--- printTestCaseWasInteresting :: Int -> Int -> IO ()
--- printTestCaseWasInteresting new prio = do
---   printf ">>> Test case was interesting! (new trace nodes=%d, prio=%d)\n" new prio
---
--- -- | Print that a test case was boring
--- printTestResult :: String -> IO ()
--- printTestResult res = do
---   printf ">>> Test result: %s\n" res
---
--- -- | Print an original test case that is being mutated
--- printOriginalTestCase :: Int -> Args -> Bool -> IO ()
--- printOriginalTestCase prio args isPassed = do
---   printf
---     ">>> Mutating %s test case (prio=%d):\n"
---     (if isPassed then "passed" else "discarded")
---     prio
---   prettyPrint args
---
--- -- ** Test case printers
---
--- -- | Print a generated test case
--- printGeneratedTestCase :: Args -> IO ()
--- printGeneratedTestCase args = do
---   printf ">>> Generated new random test case:\n"
---   prettyPrint args
---
--- -- | Print a mutated test case
--- printMutatedTestCase :: Args -> IO ()
--- printMutatedTestCase args = do
---   printf ">>> Mutated test case:\n"
---   prettyPrint args
---
--- -- | Print the original trace of a test case
--- printOriginalTestCaseTrace :: Trace -> IO ()
--- printOriginalTestCaseTrace tr = do
---   printf ">>> Original trace:\n"
---   print (unTrace tr)
---
--- -- | Print the mutated trace of a test case
--- printMutatedTestCaseTrace :: Trace -> IO ()
--- printMutatedTestCaseTrace tr = do
---   printf ">>> New trace:\n"
---   print (unTrace tr)
---
--- -- ** Status printers
---
--- -- | Print the status of the current mutation batch
--- printBatchStatus :: MutationBatch Args -> IO ()
--- printBatchStatus mbatch = do
---   printf
---     ">>> Current mutation batch: %d tests enqueued, %d mutations levels left\n"
---     (length (mbCurrBatch mbatch))
---     (mbMaxMutationDepth mbatch)
---   printf ">>> Mutated positions:\n"
---   mapM_
---     (\pos -> putStrLn (show pos <> " *"))
---     (reverse (mbPastPositions mbatch))
---   printf ">>> Next mutable positions:\n"
---   case mbNextPositions mbatch of
---     [] -> return ()
---     (p : ps) -> do
---       putStrLn (show p <> " <== current")
---       mapM_ print ps
---
--- -- | Print global statistics about the testing session
--- printGlobalStats :: MutagenState -> IO ()
--- printGlobalStats st = do
---   printf ">>> Statistics:\n"
---   printf
---     "* Executed test cases: %d (%d interesting, %d boring) (last interesting was %d tests ago)\n"
---     (stNumInteresting st + stNumBoring st)
---     (stNumInteresting st)
---     (stNumBoring st)
---     (stNumTestsSinceLastInteresting st)
---   printf
---     "* Passed %d tests (%d discarded)\n"
---     (stNumPassed st)
---     (stNumDiscarded st)
---   printf
---     "* Tests origin: %d generated, %d mutated from passed, %d mutated from discarded\n"
---     (stNumGenerated st)
---     (stNumMutatedFromPassed st)
---     (stNumMutatedFromDiscarded st)
---   printf
---     "* Mutant kinds: %d pure, %d random, %d fragments\n"
---     (stNumPureMutants st)
---     (stNumRandMutants st)
---     (stNumFragMutants st)
---   printf
---     "* Enqueued tests for mutation: %d passed, %d discarded\n"
---     (mutationQueueSize (stPassedQueue st))
---     (mutationQueueSize (stDiscardedQueue st))
---   printf
---     "* Auto-reset is %s, using %d random mutations (after %d trace log resets)\n"
---     (maybe "off" (const "on") (stAutoResetAfter st))
---     (stRandomMutations st)
---     (stNumTraceLogResets st)
---   printf
---     "* Current generation size: %d\n"
---     (stCurrentGenSize st)
---   printf
---     "* Fragment store size: %s\n"
---     (show (fragmentStoreSize (stFragmentStore st)))
---   now <- round <$> getPOSIXTime
---   let elapsed = now - stStartTime st
---   printf "* Elapsed time: %d seconds (+/- 1 second)\n" elapsed
---   printf "\n"
---
--- -- * Report printers
---
--- -- | Report that testing is done
--- reportDoneTesting :: MutagenState -> IO ()
--- reportDoneTesting st = do
---   clear
---   printGlobalStats st
---   printf ">>> Done testing\n"
---
--- -- | Report that testing gave up
--- reportGaveUp :: MutagenState -> String -> IO ()
--- reportGaveUp st r = do
---   clear
---   printGlobalStats st
---   printf ">>> Gave up (%s)\n" r
---
--- -- | Report a found counterexample
--- reportCounterexample :: MutagenState -> Args -> Result -> IO ()
--- reportCounterexample st as res = do
---   clear
---   printGlobalStats st
---   printf ">>> Found counterexample!\n"
---   printf
---     "* Reason of failure: %s\n"
---     (fromMaybe "assertion failed" (resultReason res))
---   when (isJust (resultException res)) $ do
---     printf "* The exception was:\n%s\n" (show (fromJust (resultException res)))
---   printf "* Failing inputs:\n"
---   prettyPrint as
---   printf "\n"
---
--- -- | Report that no failure was found, despite expecting one
--- reportNoExpectedFailure :: MutagenState -> IO ()
--- reportNoExpectedFailure st = do
---   clear
---   printGlobalStats st
---   printf ">>> Expected a failure, but all tests passed!\n"
---
--- {-------------------------------------------------------------------------------
--- -- * Helpers
--- -------------------------------------------------------------------------------}
+{-------------------------------------------------------------------------------
+-- * Helpers
+-------------------------------------------------------------------------------}
 
 -- | Pretty-print a value to stdout
-prettyPrint :: (Show a) => a -> IO ()
+prettyPrint :: (MonadIO m, Show a) => a -> m ()
 prettyPrint =
   pPrintOpt
     CheckColorTty
@@ -343,7 +296,7 @@ prettyPrint =
       }
 
 -- | Pretty-print a value to stdout in compact form
-compactPrint :: (Show a) => a -> IO ()
+compactPrint :: (MonadIO m, Show a) => a -> m ()
 compactPrint =
   pPrintOpt
     CheckColorTty

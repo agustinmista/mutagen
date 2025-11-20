@@ -96,6 +96,8 @@ data Config
   -- ^ Print extra info.
   , debug :: DebugMode
   -- ^ Whether to enable interactive debugging mode.
+  , tui :: Bool
+  -- ^ Whether to use a terminal user interface (TUI) for displaying progress.
   }
 
 -- | Default configuration options for Mutagen
@@ -120,6 +122,7 @@ defaultConfig =
     , maxTraceLength = Nothing
     , chatty = False
     , debug = NoDebug
+    , tui = False
     }
 
 {-------------------------------------------------------------------------------

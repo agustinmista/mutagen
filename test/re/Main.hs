@@ -61,10 +61,15 @@ config =
         -- Only store fragments of the following types
         allow @ASCII
           <> allow @(RE ASCII)
-          -- , chatty =
-          --     True
-          -- , debug =
-          --     AlwaysStop
+    , chatty =
+        -- Print extra info
+        False
+    , debug =
+        -- Disable interactive debugging mode
+        NoDebug
+    , tui =
+        -- Use the brick-based terminal UI
+        False
     }
 
 -- | Optimizing a regex preserves the language it accepts

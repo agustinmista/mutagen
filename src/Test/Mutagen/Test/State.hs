@@ -101,6 +101,8 @@ data MutagenState
   -- ^ Mirrored from 'Config.chatty'
   , stDebug :: !DebugMode
   -- ^ Mirrored from 'Config.debug'
+  , stTui :: !Bool
+  -- ^ Mirrored from 'Config.tui'
   , stNextSeed :: !QCGen
   -- ^ Next seed to be when generating random values
   , stArgsGen :: !(Gen Args)
@@ -189,6 +191,7 @@ initMutagenState cfg (Property gen argsRunner) = do
         , stMaxTraceLength = maxTraceLength cfg
         , stChatty = chatty cfg || debug cfg /= NoDebug
         , stDebug = debug cfg
+        , stTui = tui cfg
         , -- Internal
           stNextSeed = rng
         , stArgsGen = gen
