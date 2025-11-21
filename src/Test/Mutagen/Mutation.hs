@@ -3,7 +3,28 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Test.Mutagen.Mutation where
+-- | Mutations as transformations of values into mutants
+module Test.Mutagen.Mutation
+  ( -- * Mutable types
+    Pos
+  , Mutation
+  , Mutable (..)
+  , mutateEverywhere
+  , wrap
+  , node
+  , invalidPosition
+  , invalidPositionShow
+
+    -- * Immutable wrapper
+  , Immutable (..)
+
+    -- * Mutation order
+  , MutationOrder
+  , preorder
+  , postorder
+  , levelorder
+  )
+where
 
 -- For providing some default Mutable instances
 import Data.Char
@@ -17,138 +38,110 @@ import Test.Mutagen.Fragment
 import Test.Mutagen.Mutant
 import Test.QuickCheck
 
-----------------------------------------
+{-------------------------------------------------------------------------------
+-- * Mutable types
+-------------------------------------------------------------------------------}
+
+-- ** Types
 
 -- | Breadcrumbs used to place mutations inside of values
 type Pos = [Int]
 
-----------------------------------------
-
 -- | Mutations as transformations of values into mutants
 type Mutation a = a -> [Mutant a]
 
-type GenericMutation = forall a. (Mutable a) => Mutation a
-
-----------------------------------------
+-- ** Mutable class
 
 -- | Mutable types
 class (Typeable a) => Mutable a where
-  -- | Mutable positions
-  -- List all the possible positions where we could mutate the value
+  -- | List all the possible positions whithin a value that accept mutations
   positions :: a -> Tree Pos
-  positions = defaultPositions
+  positions _ = node []
 
   -- | Single value mutations
   -- The default value of the type to be used when mutating
   def :: a
-  def = defaultDef
+  def = error "def: not defined"
 
   -- Top-level constructor mutations
   mutate :: Mutation a
-  mutate = defaultMutate
+  mutate = mempty
 
   -- Apply a top-level mutation inside a value
-  inside :: Pos -> GenericMutation -> Mutation a
-  inside = defaultInside
+  inside :: Pos -> (forall x. (Mutable x) => Mutation x) -> Mutation a
+  inside [] mut = mut
+  inside pos _ = invalidPosition pos
 
--- Join all possible mutations, top-level and nested
+-- | A mutation that acts everywhere inside a mutable value
 mutateEverywhere :: (Mutable a) => Mutation a
-mutateEverywhere a =
-  mutate a
-    <> mconcat [inside pos mutate a | pos <- levelorder (positions a)]
+mutateEverywhere a = topLevel <> nested
+  where
+    topLevel = mutate a
+    nested = mconcat [inside pos mutate a | pos <- levelorder (positions a)]
 
-----------------------------------------
--- Instance declaration helpers
+-- ** Helpers for defining instances
 
--- Default method implementations
-defaultPositions :: a -> Tree Pos
-defaultPositions _ = node []
-
-defaultDef :: a
-defaultDef = error "def: not defined"
-
-defaultMutate :: Mutation a
-defaultMutate = mempty
-
-defaultInside :: (Mutable a) => Pos -> GenericMutation -> Mutation a
-defaultInside [] mut = mut
-defaultInside pos _ = invalidPosition pos
-
--- Helpers
-
+-- | Wrap mutants with a constructor
 wrap :: [Mutant a] -> (a -> b) -> [Mutant b]
 wrap mutants wrapper = fmap (fmap wrapper) mutants
 
+-- | Construct a position tree node from its indexed children
 node :: [(Int, Tree Pos)] -> Tree Pos
 node xs = Node [] (fmap (\(idx, children) -> fmap (idx :) children) xs)
 
+-- | Report an invalid position error
 invalidPosition :: Pos -> a
 invalidPosition pos =
   error ("inside: invalid position: " <> show pos)
 
+-- | Report an invalid position error, showing also the value being mutated
 invalidPositionShow :: (Show a) => Pos -> a -> b
 invalidPositionShow pos a =
   error ("inside: invalid position: " <> show pos <> "\nvalue: " <> show a)
 
-invalidPositions :: Pos -> Pos -> a
-invalidPositions pos1 pos2 =
-  error ("inside2: invalid position: " <> show (pos1, pos2))
+{-------------------------------------------------------------------------------
+-- * Immutable wrapper
+-------------------------------------------------------------------------------}
 
-invalidPositionsShow :: (Show a) => Pos -> Pos -> a -> a -> b
-invalidPositionsShow pos1 pos2 a1 a2 =
-  error
-    ( "inside2: invalid position: "
-        <> show (pos1, pos2)
-        <> "\nvalues: "
-        <> show a1
-        <> "\n\n"
-        <> show a2
-    )
+-- | A mutable wrapper that produces no mutations.
+--
+-- This useful for constraning certain parts of a data structure to be
+-- immutable while still fullfilling the 'Mutable' interface.
+newtype Immutable a = Immutable {unImmutabe :: a}
+  deriving (Eq, Ord, Read, Show)
 
-----------------------------------------
+instance (Arbitrary a) => Arbitrary (Immutable a) where
+  arbitrary = Immutable <$> arbitrary
 
--- | Mutation order
+instance (Arbitrary a, Typeable a) => Mutable (Immutable a)
 
--- Mutation order (default: levelorder)
+{-------------------------------------------------------------------------------
+-- * Mutation order
+-------------------------------------------------------------------------------}
+
+-- | Order in which to traverse the mutation positions of a value
 type MutationOrder = forall a. Tree a -> [a]
 
+-- | Pre-order traversal
 preorder :: MutationOrder
 preorder t = squish t []
   where
     squish (Node x ts) xs = x : List.foldr squish xs ts
 
+-- | Post-order traversal
 postorder :: MutationOrder
 postorder = squish []
   where
     squish xs (Node x ts) = x : List.foldl' squish xs ts
 
+-- | Level-order traversal
 levelorder :: MutationOrder
 levelorder = concat . levels
 
-----------------------------------------
+{-------------------------------------------------------------------------------
+-- * Instances
+-------------------------------------------------------------------------------}
 
--- | Mutable instances
-
-----------------------------------------
-
-----------------------------------------
-
--- | A mutable wrapper that produces no mutations
--- Useful for fullfiling the mutable constraint on some input arguments
-newtype Rigid a = Rigid a
-  deriving (Eq, Ord, Read, Show)
-
-unRigid :: Rigid a -> a
-unRigid (Rigid a) = a
-
-instance (Arbitrary a) => Arbitrary (Rigid a) where
-  arbitrary = Rigid <$> arbitrary
-
-instance (Arbitrary a, Typeable a) => Mutable (Rigid a)
-
-----------------------------------------
-
--- | Base types instances
 instance Mutable () where
   def = ()
 
@@ -221,6 +214,7 @@ instance (Mutable a) => Mutable [a] where
 
   def = []
 
+  -- NOTE: this instance additionally allows values to be duplicated
   mutate [] = [Pure [def]]
   mutate [x] = [Pure [], Pure [x, x]]
   mutate (x : xs) = [Pure [], Pure xs, Pure (x : x : xs)]
@@ -237,14 +231,26 @@ instance (Mutable v, Typeable k) => Mutable (Map k v) where
 
   inside [] mut m = mut m
   inside (n : ps) mut m
-    | n >= 0 && n < Map.size m = wrap (inside ps mut (snd (Map.elemAt n m))) (\x -> Map.updateAt (\_ _ -> Just x) n m)
-    | otherwise = invalidPosition (n : ps)
+    | n >= 0 && n < Map.size m =
+        wrap
+          (inside ps mut (snd (Map.elemAt n m)))
+          (\x -> Map.updateAt (\_ _ -> Just x) n m)
+    | otherwise =
+        invalidPosition (n : ps)
 
--- Tuple instances
+-- ** Tuple instances
 
-instance (Mutable a, Mutable b) => Mutable (a, b) where
+instance
+  ( Mutable a
+  , Mutable b
+  )
+  => Mutable (a, b)
+  where
   positions (a, b) =
-    node [(0, positions a), (1, positions b)]
+    node
+      [ (0, positions a)
+      , (1, positions b)
+      ]
 
   def = (def, def)
 
@@ -252,14 +258,26 @@ instance (Mutable a, Mutable b) => Mutable (a, b) where
     [fmap (\x -> (x, b)) ga | ga <- mutate a]
       <> [fmap (\x -> (a, x)) gb | gb <- mutate b]
 
-  inside [] mut x = mut x
-  inside (0 : ps) mut (a, b) = wrap (inside ps mut a) (\x -> (x, b))
-  inside (1 : ps) mut (a, b) = wrap (inside ps mut b) (\x -> (a, x))
-  inside pos _ _ = invalidPosition pos
+  inside pos mut x@(a, b) =
+    case pos of
+      [] -> mut x
+      (0 : ps) -> wrap (inside ps mut a) (\a' -> (a', b))
+      (1 : ps) -> wrap (inside ps mut b) (\b' -> (a, b'))
+      _ -> invalidPosition pos
 
-instance (Mutable a, Mutable b, Mutable c) => Mutable (a, b, c) where
+instance
+  ( Mutable a
+  , Mutable b
+  , Mutable c
+  )
+  => Mutable (a, b, c)
+  where
   positions (a, b, c) =
-    node [(0, positions a), (1, positions b), (2, positions c)]
+    node
+      [ (0, positions a)
+      , (1, positions b)
+      , (2, positions c)
+      ]
 
   def = (def, def, def)
 
@@ -268,15 +286,29 @@ instance (Mutable a, Mutable b, Mutable c) => Mutable (a, b, c) where
       <> [fmap (\x -> (a, x, c)) gb | gb <- mutate b]
       <> [fmap (\x -> (a, b, x)) gc | gc <- mutate c]
 
-  inside [] mut x = mut x
-  inside (0 : ps) mut (a, b, c) = wrap (inside ps mut a) (\x -> (x, b, c))
-  inside (1 : ps) mut (a, b, c) = wrap (inside ps mut b) (\x -> (a, x, c))
-  inside (2 : ps) mut (a, b, c) = wrap (inside ps mut c) (\x -> (a, b, x))
-  inside pos _ _ = invalidPosition pos
+  inside pos mut x@(a, b, c) =
+    case pos of
+      [] -> mut x
+      (0 : ps) -> wrap (inside ps mut a) (\a' -> (a', b, c))
+      (1 : ps) -> wrap (inside ps mut b) (\b' -> (a, b', c))
+      (2 : ps) -> wrap (inside ps mut c) (\c' -> (a, b, c'))
+      _ -> invalidPosition pos
 
-instance (Mutable a, Mutable b, Mutable c, Mutable d) => Mutable (a, b, c, d) where
+instance
+  ( Mutable a
+  , Mutable b
+  , Mutable c
+  , Mutable d
+  )
+  => Mutable (a, b, c, d)
+  where
   positions (a, b, c, d) =
-    node [(0, positions a), (1, positions b), (2, positions c), (3, positions d)]
+    node
+      [ (0, positions a)
+      , (1, positions b)
+      , (2, positions c)
+      , (3, positions d)
+      ]
 
   def = (def, def, def, def)
 
@@ -286,16 +318,32 @@ instance (Mutable a, Mutable b, Mutable c, Mutable d) => Mutable (a, b, c, d) wh
       <> [fmap (\x -> (a, b, x, d)) gc | gc <- mutate c]
       <> [fmap (\x -> (a, b, c, x)) gd | gd <- mutate d]
 
-  inside [] mut x = mut x
-  inside (0 : ps) mut (a, b, c, d) = wrap (inside ps mut a) (\x -> (x, b, c, d))
-  inside (1 : ps) mut (a, b, c, d) = wrap (inside ps mut b) (\x -> (a, x, c, d))
-  inside (2 : ps) mut (a, b, c, d) = wrap (inside ps mut c) (\x -> (a, b, x, d))
-  inside (3 : ps) mut (a, b, c, d) = wrap (inside ps mut d) (\x -> (a, b, c, x))
-  inside pos _ _ = invalidPosition pos
+  inside pos mut x@(a, b, c, d) =
+    case pos of
+      [] -> mut x
+      (0 : ps) -> wrap (inside ps mut a) (\a' -> (a', b, c, d))
+      (1 : ps) -> wrap (inside ps mut b) (\b' -> (a, b', c, d))
+      (2 : ps) -> wrap (inside ps mut c) (\c' -> (a, b, c', d))
+      (3 : ps) -> wrap (inside ps mut d) (\d' -> (a, b, c, d'))
+      _ -> invalidPosition pos
 
-instance (Mutable a, Mutable b, Mutable c, Mutable d, Mutable e) => Mutable (a, b, c, d, e) where
+instance
+  ( Mutable a
+  , Mutable b
+  , Mutable c
+  , Mutable d
+  , Mutable e
+  )
+  => Mutable (a, b, c, d, e)
+  where
   positions (a, b, c, d, e) =
-    node [(0, positions a), (1, positions b), (2, positions c), (3, positions d), (4, positions e)]
+    node
+      [ (0, positions a)
+      , (1, positions b)
+      , (2, positions c)
+      , (3, positions d)
+      , (4, positions e)
+      ]
 
   def = (def, def, def, def, def)
 
@@ -306,15 +354,26 @@ instance (Mutable a, Mutable b, Mutable c, Mutable d, Mutable e) => Mutable (a, 
       <> [fmap (\x -> (a, b, c, x, e)) gd | gd <- mutate d]
       <> [fmap (\x -> (a, b, c, d, x)) ge | ge <- mutate e]
 
-  inside [] mut x = mut x
-  inside (0 : ps) mut (a, b, c, d, e) = wrap (inside ps mut a) (\x -> (x, b, c, d, e))
-  inside (1 : ps) mut (a, b, c, d, e) = wrap (inside ps mut b) (\x -> (a, x, c, d, e))
-  inside (2 : ps) mut (a, b, c, d, e) = wrap (inside ps mut c) (\x -> (a, b, x, d, e))
-  inside (3 : ps) mut (a, b, c, d, e) = wrap (inside ps mut d) (\x -> (a, b, c, x, e))
-  inside (4 : ps) mut (a, b, c, d, e) = wrap (inside ps mut e) (\x -> (a, b, c, d, x))
-  inside pos _ _ = invalidPosition pos
+  inside pos mut x@(a, b, c, d, e) =
+    case pos of
+      [] -> mut x
+      (0 : ps) -> wrap (inside ps mut a) (\a' -> (a', b, c, d, e))
+      (1 : ps) -> wrap (inside ps mut b) (\b' -> (a, b', c, d, e))
+      (2 : ps) -> wrap (inside ps mut c) (\c' -> (a, b, c', d, e))
+      (3 : ps) -> wrap (inside ps mut d) (\d' -> (a, b, c, d', e))
+      (4 : ps) -> wrap (inside ps mut e) (\e' -> (a, b, c, d, e'))
+      _ -> invalidPosition pos
 
-instance (Mutable a, Mutable b, Mutable c, Mutable d, Mutable e, Mutable f) => Mutable (a, b, c, d, e, f) where
+instance
+  ( Mutable a
+  , Mutable b
+  , Mutable c
+  , Mutable d
+  , Mutable e
+  , Mutable f
+  )
+  => Mutable (a, b, c, d, e, f)
+  where
   positions (a, b, c, d, e, f) =
     node
       [ (0, positions a)
@@ -335,16 +394,28 @@ instance (Mutable a, Mutable b, Mutable c, Mutable d, Mutable e, Mutable f) => M
       <> [fmap (\x -> (a, b, c, d, x, f)) ge | ge <- mutate e]
       <> [fmap (\x -> (a, b, c, d, e, x)) gf | gf <- mutate f]
 
-  inside [] mut x = mut x
-  inside (0 : ps) mut (a, b, c, d, e, f) = wrap (inside ps mut a) (\x -> (x, b, c, d, e, f))
-  inside (1 : ps) mut (a, b, c, d, e, f) = wrap (inside ps mut b) (\x -> (a, x, c, d, e, f))
-  inside (2 : ps) mut (a, b, c, d, e, f) = wrap (inside ps mut c) (\x -> (a, b, x, d, e, f))
-  inside (3 : ps) mut (a, b, c, d, e, f) = wrap (inside ps mut d) (\x -> (a, b, c, x, e, f))
-  inside (4 : ps) mut (a, b, c, d, e, f) = wrap (inside ps mut e) (\x -> (a, b, c, d, x, f))
-  inside (5 : ps) mut (a, b, c, d, e, f) = wrap (inside ps mut f) (\x -> (a, b, c, d, e, x))
-  inside pos _ _ = invalidPosition pos
+  inside pos mut x@(a, b, c, d, e, f) =
+    case pos of
+      [] -> mut x
+      (0 : ps) -> wrap (inside ps mut a) (\a' -> (a', b, c, d, e, f))
+      (1 : ps) -> wrap (inside ps mut b) (\b' -> (a, b', c, d, e, f))
+      (2 : ps) -> wrap (inside ps mut c) (\c' -> (a, b, c', d, e, f))
+      (3 : ps) -> wrap (inside ps mut d) (\d' -> (a, b, c, d', e, f))
+      (4 : ps) -> wrap (inside ps mut e) (\e' -> (a, b, c, d, e', f))
+      (5 : ps) -> wrap (inside ps mut f) (\f' -> (a, b, c, d, e, f'))
+      _ -> invalidPosition pos
 
-instance (Mutable a, Mutable b, Mutable c, Mutable d, Mutable e, Mutable f, Mutable g) => Mutable (a, b, c, d, e, f, g) where
+instance
+  ( Mutable a
+  , Mutable b
+  , Mutable c
+  , Mutable d
+  , Mutable e
+  , Mutable f
+  , Mutable g
+  )
+  => Mutable (a, b, c, d, e, f, g)
+  where
   positions (a, b, c, d, e, f, g) =
     node
       [ (0, positions a)
@@ -367,17 +438,30 @@ instance (Mutable a, Mutable b, Mutable c, Mutable d, Mutable e, Mutable f, Muta
       <> [fmap (\x -> (a, b, c, d, e, x, g)) gf | gf <- mutate f]
       <> [fmap (\x -> (a, b, c, d, e, f, x)) gg | gg <- mutate g]
 
-  inside [] mut x = mut x
-  inside (0 : ps) mut (a, b, c, d, e, f, g) = wrap (inside ps mut a) (\x -> (x, b, c, d, e, f, g))
-  inside (1 : ps) mut (a, b, c, d, e, f, g) = wrap (inside ps mut b) (\x -> (a, x, c, d, e, f, g))
-  inside (2 : ps) mut (a, b, c, d, e, f, g) = wrap (inside ps mut c) (\x -> (a, b, x, d, e, f, g))
-  inside (3 : ps) mut (a, b, c, d, e, f, g) = wrap (inside ps mut d) (\x -> (a, b, c, x, e, f, g))
-  inside (4 : ps) mut (a, b, c, d, e, f, g) = wrap (inside ps mut e) (\x -> (a, b, c, d, x, f, g))
-  inside (5 : ps) mut (a, b, c, d, e, f, g) = wrap (inside ps mut f) (\x -> (a, b, c, d, e, x, g))
-  inside (6 : ps) mut (a, b, c, d, e, f, g) = wrap (inside ps mut g) (\x -> (a, b, c, d, e, f, x))
-  inside pos _ _ = invalidPosition pos
+  inside pos mut x@(a, b, c, d, e, f, g) =
+    case pos of
+      [] -> mut x
+      (0 : ps) -> wrap (inside ps mut a) (\a' -> (a', b, c, d, e, f, g))
+      (1 : ps) -> wrap (inside ps mut b) (\b' -> (a, b', c, d, e, f, g))
+      (2 : ps) -> wrap (inside ps mut c) (\c' -> (a, b, c', d, e, f, g))
+      (3 : ps) -> wrap (inside ps mut d) (\d' -> (a, b, c, d', e, f, g))
+      (4 : ps) -> wrap (inside ps mut e) (\e' -> (a, b, c, d, e', f, g))
+      (5 : ps) -> wrap (inside ps mut f) (\f' -> (a, b, c, d, e, f', g))
+      (6 : ps) -> wrap (inside ps mut g) (\g' -> (a, b, c, d, e, f, g'))
+      _ -> invalidPosition pos
 
-instance (Mutable a, Mutable b, Mutable c, Mutable d, Mutable e, Mutable f, Mutable g, Mutable h) => Mutable (a, b, c, d, e, f, g, h) where
+instance
+  ( Mutable a
+  , Mutable b
+  , Mutable c
+  , Mutable d
+  , Mutable e
+  , Mutable f
+  , Mutable g
+  , Mutable h
+  )
+  => Mutable (a, b, c, d, e, f, g, h)
+  where
   positions (a, b, c, d, e, f, g, h) =
     node
       [ (0, positions a)
@@ -402,18 +486,32 @@ instance (Mutable a, Mutable b, Mutable c, Mutable d, Mutable e, Mutable f, Muta
       <> [fmap (\x -> (a, b, c, d, e, f, x, h)) gg | gg <- mutate g]
       <> [fmap (\x -> (a, b, c, d, e, f, g, x)) gh | gh <- mutate h]
 
-  inside [] mut x = mut x
-  inside (0 : ps) mut (a, b, c, d, e, f, g, h) = wrap (inside ps mut a) (\x -> (x, b, c, d, e, f, g, h))
-  inside (1 : ps) mut (a, b, c, d, e, f, g, h) = wrap (inside ps mut b) (\x -> (a, x, c, d, e, f, g, h))
-  inside (2 : ps) mut (a, b, c, d, e, f, g, h) = wrap (inside ps mut c) (\x -> (a, b, x, d, e, f, g, h))
-  inside (3 : ps) mut (a, b, c, d, e, f, g, h) = wrap (inside ps mut d) (\x -> (a, b, c, x, e, f, g, h))
-  inside (4 : ps) mut (a, b, c, d, e, f, g, h) = wrap (inside ps mut e) (\x -> (a, b, c, d, x, f, g, h))
-  inside (5 : ps) mut (a, b, c, d, e, f, g, h) = wrap (inside ps mut f) (\x -> (a, b, c, d, e, x, g, h))
-  inside (6 : ps) mut (a, b, c, d, e, f, g, h) = wrap (inside ps mut g) (\x -> (a, b, c, d, e, f, x, h))
-  inside (7 : ps) mut (a, b, c, d, e, f, g, h) = wrap (inside ps mut h) (\x -> (a, b, c, d, e, f, g, x))
-  inside pos _ _ = invalidPosition pos
+  inside pos mut x@(a, b, c, d, e, f, g, h) =
+    case pos of
+      [] -> mut x
+      (0 : ps) -> wrap (inside ps mut a) (\a' -> (a', b, c, d, e, f, g, h))
+      (1 : ps) -> wrap (inside ps mut b) (\b' -> (a, b', c, d, e, f, g, h))
+      (2 : ps) -> wrap (inside ps mut c) (\c' -> (a, b, c', d, e, f, g, h))
+      (3 : ps) -> wrap (inside ps mut d) (\d' -> (a, b, c, d', e, f, g, h))
+      (4 : ps) -> wrap (inside ps mut e) (\e' -> (a, b, c, d, e', f, g, h))
+      (5 : ps) -> wrap (inside ps mut f) (\f' -> (a, b, c, d, e, f', g, h))
+      (6 : ps) -> wrap (inside ps mut g) (\g' -> (a, b, c, d, e, f, g', h))
+      (7 : ps) -> wrap (inside ps mut h) (\h' -> (a, b, c, d, e, f, g, h'))
+      _ -> invalidPosition pos
 
-instance (Mutable a, Mutable b, Mutable c, Mutable d, Mutable e, Mutable f, Mutable g, Mutable h, Mutable i) => Mutable (a, b, c, d, e, f, g, h, i) where
+instance
+  ( Mutable a
+  , Mutable b
+  , Mutable c
+  , Mutable d
+  , Mutable e
+  , Mutable f
+  , Mutable g
+  , Mutable h
+  , Mutable i
+  )
+  => Mutable (a, b, c, d, e, f, g, h, i)
+  where
   positions (a, b, c, d, e, f, g, h, i) =
     node
       [ (0, positions a)
@@ -440,19 +538,34 @@ instance (Mutable a, Mutable b, Mutable c, Mutable d, Mutable e, Mutable f, Muta
       <> [fmap (\x -> (a, b, c, d, e, f, g, x, i)) gh | gh <- mutate h]
       <> [fmap (\x -> (a, b, c, d, e, f, g, h, x)) gi | gi <- mutate i]
 
-  inside [] mut x = mut x
-  inside (0 : ps) mut (a, b, c, d, e, f, g, h, i) = wrap (inside ps mut a) (\x -> (x, b, c, d, e, f, g, h, i))
-  inside (1 : ps) mut (a, b, c, d, e, f, g, h, i) = wrap (inside ps mut b) (\x -> (a, x, c, d, e, f, g, h, i))
-  inside (2 : ps) mut (a, b, c, d, e, f, g, h, i) = wrap (inside ps mut c) (\x -> (a, b, x, d, e, f, g, h, i))
-  inside (3 : ps) mut (a, b, c, d, e, f, g, h, i) = wrap (inside ps mut d) (\x -> (a, b, c, x, e, f, g, h, i))
-  inside (4 : ps) mut (a, b, c, d, e, f, g, h, i) = wrap (inside ps mut e) (\x -> (a, b, c, d, x, f, g, h, i))
-  inside (5 : ps) mut (a, b, c, d, e, f, g, h, i) = wrap (inside ps mut f) (\x -> (a, b, c, d, e, x, g, h, i))
-  inside (6 : ps) mut (a, b, c, d, e, f, g, h, i) = wrap (inside ps mut g) (\x -> (a, b, c, d, e, f, x, h, i))
-  inside (7 : ps) mut (a, b, c, d, e, f, g, h, i) = wrap (inside ps mut h) (\x -> (a, b, c, d, e, f, g, x, i))
-  inside (8 : ps) mut (a, b, c, d, e, f, g, h, i) = wrap (inside ps mut i) (\x -> (a, b, c, d, e, f, g, h, x))
-  inside pos _ _ = invalidPosition pos
+  inside pos mut x@(a, b, c, d, e, f, g, h, i) =
+    case pos of
+      [] -> mut x
+      (0 : ps) -> wrap (inside ps mut a) (\a' -> (a', b, c, d, e, f, g, h, i))
+      (1 : ps) -> wrap (inside ps mut b) (\b' -> (a, b', c, d, e, f, g, h, i))
+      (2 : ps) -> wrap (inside ps mut c) (\c' -> (a, b, c', d, e, f, g, h, i))
+      (3 : ps) -> wrap (inside ps mut d) (\d' -> (a, b, c, d', e, f, g, h, i))
+      (4 : ps) -> wrap (inside ps mut e) (\e' -> (a, b, c, d, e', f, g, h, i))
+      (5 : ps) -> wrap (inside ps mut f) (\f' -> (a, b, c, d, e, f', g, h, i))
+      (6 : ps) -> wrap (inside ps mut g) (\g' -> (a, b, c, d, e, f, g', h, i))
+      (7 : ps) -> wrap (inside ps mut h) (\h' -> (a, b, c, d, e, f, g, h', i))
+      (8 : ps) -> wrap (inside ps mut i) (\i' -> (a, b, c, d, e, f, g, h, i'))
+      _ -> invalidPosition pos
 
-instance (Mutable a, Mutable b, Mutable c, Mutable d, Mutable e, Mutable f, Mutable g, Mutable h, Mutable i, Mutable j) => Mutable (a, b, c, d, e, f, g, h, i, j) where
+instance
+  ( Mutable a
+  , Mutable b
+  , Mutable c
+  , Mutable d
+  , Mutable e
+  , Mutable f
+  , Mutable g
+  , Mutable h
+  , Mutable i
+  , Mutable j
+  )
+  => Mutable (a, b, c, d, e, f, g, h, i, j)
+  where
   positions (a, b, c, d, e, f, g, h, i, j) =
     node
       [ (0, positions a)
@@ -481,15 +594,17 @@ instance (Mutable a, Mutable b, Mutable c, Mutable d, Mutable e, Mutable f, Muta
       <> [fmap (\x -> (a, b, c, d, e, f, g, h, x, j)) gi | gi <- mutate i]
       <> [fmap (\x -> (a, b, c, d, e, f, g, h, i, x)) gj | gj <- mutate j]
 
-  inside [] mut x = mut x
-  inside (0 : ps) mut (a, b, c, d, e, f, g, h, i, j) = wrap (inside ps mut a) (\x -> (x, b, c, d, e, f, g, h, i, j))
-  inside (1 : ps) mut (a, b, c, d, e, f, g, h, i, j) = wrap (inside ps mut b) (\x -> (a, x, c, d, e, f, g, h, i, j))
-  inside (2 : ps) mut (a, b, c, d, e, f, g, h, i, j) = wrap (inside ps mut c) (\x -> (a, b, x, d, e, f, g, h, i, j))
-  inside (3 : ps) mut (a, b, c, d, e, f, g, h, i, j) = wrap (inside ps mut d) (\x -> (a, b, c, x, e, f, g, h, i, j))
-  inside (4 : ps) mut (a, b, c, d, e, f, g, h, i, j) = wrap (inside ps mut e) (\x -> (a, b, c, d, x, f, g, h, i, j))
-  inside (5 : ps) mut (a, b, c, d, e, f, g, h, i, j) = wrap (inside ps mut f) (\x -> (a, b, c, d, e, x, g, h, i, j))
-  inside (6 : ps) mut (a, b, c, d, e, f, g, h, i, j) = wrap (inside ps mut g) (\x -> (a, b, c, d, e, f, x, h, i, j))
-  inside (7 : ps) mut (a, b, c, d, e, f, g, h, i, j) = wrap (inside ps mut h) (\x -> (a, b, c, d, e, f, g, x, i, j))
-  inside (8 : ps) mut (a, b, c, d, e, f, g, h, i, j) = wrap (inside ps mut i) (\x -> (a, b, c, d, e, f, g, h, x, j))
-  inside (9 : ps) mut (a, b, c, d, e, f, g, h, i, j) = wrap (inside ps mut j) (\x -> (a, b, c, d, e, f, g, h, i, x))
-  inside pos _ _ = invalidPosition pos
+  inside pos mut x@(a, b, c, d, e, f, g, h, i, j) =
+    case pos of
+      [] -> mut x
+      (0 : ps) -> wrap (inside ps mut a) (\a' -> (a', b, c, d, e, f, g, h, i, j))
+      (1 : ps) -> wrap (inside ps mut b) (\b' -> (a, b', c, d, e, f, g, h, i, j))
+      (2 : ps) -> wrap (inside ps mut c) (\c' -> (a, b, c', d, e, f, g, h, i, j))
+      (3 : ps) -> wrap (inside ps mut d) (\d' -> (a, b, c, d', e, f, g, h, i, j))
+      (4 : ps) -> wrap (inside ps mut e) (\e' -> (a, b, c, d, e', f, g, h, i, j))
+      (5 : ps) -> wrap (inside ps mut f) (\f' -> (a, b, c, d, e, f', g, h, i, j))
+      (6 : ps) -> wrap (inside ps mut g) (\g' -> (a, b, c, d, e, f, g', h, i, j))
+      (7 : ps) -> wrap (inside ps mut h) (\h' -> (a, b, c, d, e, f, g, h', i, j))
+      (8 : ps) -> wrap (inside ps mut i) (\i' -> (a, b, c, d, e, f, g, h, i', j))
+      (9 : ps) -> wrap (inside ps mut j) (\j' -> (a, b, c, d, e, f, g, h, i, j'))
+      _ -> invalidPosition pos
