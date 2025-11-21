@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
+-- | Test case fragments and fragment stores
 module Test.Mutagen.Fragment
   ( Fragment (..)
   , FragmentStore (..)
@@ -18,21 +19,24 @@ module Test.Mutagen.Fragment
   )
 where
 
-import Control.Monad
+import Control.Monad (forM_)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe
+import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Typeable
-import Data.Word
-import Test.QuickCheck
+import Data.Typeable (TypeRep, Typeable, cast, typeOf)
+import Data.Word (Word16, Word32, Word64, Word8)
+import Test.QuickCheck (Gen, shuffle)
 
-----------------------------------------
--- Test case fragments as existential typeable values
+{-------------------------------------------------------------------------------
+-- * Fragments and Fragmentable class
+-------------------------------------------------------------------------------}
 
+-- | Fragment type class constraint
 type IsFragment a = (Typeable a, Ord a, Show a)
 
+-- | A test case fragment hidden behind an existential
 data Fragment = forall a. (IsFragment a) => Fragment a
 
 instance Eq Fragment where
@@ -50,16 +54,24 @@ instance Ord Fragment where
 instance Show Fragment where
   show (Fragment a) = "Fragment(" <> show a <> ")"
 
-----------------------------------------
--- Storing fragments based on their type
+-- ** Fragmentable class
 
+-- | Types that can be fragmented into smaller pieces
+class (IsFragment a) => Fragmentable a where
+  -- | Extract fragments from a value
+  fragmentize :: a -> Set Fragment
+  fragmentize = singleton
+
+-- | Lift a item into a singleton fragment set
+singleton :: (Fragmentable a) => a -> Set Fragment
+singleton = Set.singleton . Fragment
+
+{-------------------------------------------------------------------------------
+-- * Type-indexed fragment store
+-------------------------------------------------------------------------------}
+
+-- | A collection of fragments indexed by their type representation
 newtype FragmentStore = FragmentStore (Map TypeRep (Set Fragment))
-
-fragmentStoreSize :: FragmentStore -> [(TypeRep, Int)]
-fragmentStoreSize (FragmentStore fs) =
-  [ (tyRep, Set.size frags)
-  | (tyRep, frags) <- Map.toList fs
-  ]
 
 instance Semigroup FragmentStore where
   FragmentStore fs1 <> FragmentStore fs2 =
@@ -68,56 +80,55 @@ instance Semigroup FragmentStore where
 instance Monoid FragmentStore where
   mempty = emptyFragmentStore
 
-printFragmentStore :: FragmentStore -> IO ()
-printFragmentStore (FragmentStore fs) = do
-  forM_ (Map.assocs fs) $ \(tyRep, frags) -> do
-    putStrLn ("TypeRep: " <> show tyRep)
-    forM_ frags $ \frag -> do
-      putStrLn ("* " <> show frag)
-
+-- | An empty fragment store
 emptyFragmentStore :: FragmentStore
 emptyFragmentStore = FragmentStore mempty
 
-insertFragment
-  :: FragmentTypeFilter
-  -> TypeRep
-  -> Fragment
-  -> FragmentStore
-  -> FragmentStore
-insertFragment f tyRep fr (FragmentStore fs)
-  | isFragmentTypeAllowed f tyRep =
-      FragmentStore (Map.insertWith Set.union tyRep (Set.singleton fr) fs)
-  | otherwise =
-      FragmentStore fs
+-- | Get the number of fragments stored for each type
+fragmentStoreSize :: FragmentStore -> [(TypeRep, Int)]
+fragmentStoreSize (FragmentStore fs) =
+  [ (tyRep, Set.size frags)
+  | (tyRep, frags) <- Map.toList fs
+  ]
 
-collectFragments
-  :: (Fragmentable a)
-  => FragmentTypeFilter
-  -> a
-  -> FragmentStore
-collectFragments f a = foldr (uncurry (insertFragment f)) emptyFragmentStore fts
-  where
-    fts = Set.map (\(Fragment x) -> (typeOf x, Fragment x)) (fragmentize a)
-
+-- | Store fragments from a value into the fragment store
 storeFragments
   :: (Fragmentable a)
   => FragmentTypeFilter
   -> a
   -> FragmentStore
   -> FragmentStore
-storeFragments f a fs = fs <> collectFragments f a
+storeFragments f a (FragmentStore store) =
+  FragmentStore (Map.unionWith Set.union store (collect a))
+  where
+    collect = foldr insertIfAllowed Map.empty . fragmentize
 
+    insertIfAllowed a' store'
+      | isFragmentTypeAllowed f (typeOf a) =
+          Map.insertWith Set.union (typeOf a) (Set.singleton a') store'
+      | otherwise =
+          store'
+
+-- | Sample fragments of the same type as the given value from a fragment store
 sampleFragments
   :: (Typeable a)
   => a
   -> FragmentStore
   -> Gen [a]
-sampleFragments a (FragmentStore fs) = do
-  case Map.lookup (typeOf a) fs of
+sampleFragments a (FragmentStore store) = do
+  case Map.lookup (typeOf a) store of
     Nothing ->
       return []
     Just frags ->
       mapMaybe (\(Fragment a') -> cast a') <$> shuffle (Set.toList frags)
+
+-- | Print the contents of a fragment store for debugging purposes
+printFragmentStore :: FragmentStore -> IO ()
+printFragmentStore (FragmentStore fs) = do
+  forM_ (Map.assocs fs) $ \(tyRep, frags) -> do
+    putStrLn ("TypeRep: " <> show tyRep)
+    forM_ frags $ \frag -> do
+      putStrLn ("* " <> show frag)
 
 -- ** Fragment type filters
 
@@ -143,21 +154,9 @@ isFragmentTypeAllowed (FragmentTypeFilter allow deny) tr =
   (tr `Set.member` allow)
     && not (tr `Set.member` deny)
 
-----------------------------------------
--- Fragmentizing values
-
-class (IsFragment a) => Fragmentable a where
-  fragmentize :: a -> Set Fragment
-  fragmentize = singleton
-
--- Helpers
-
-singleton :: (Fragmentable a) => a -> Set Fragment
-singleton = Set.singleton . Fragment
-
-----------------------------------------
--- Fragmentable instances
-----------------------------------------
+{-------------------------------------------------------------------------------
+-- * Fragmentable instances
+-------------------------------------------------------------------------------}
 
 instance Fragmentable ()
 
@@ -186,41 +185,196 @@ instance (Fragmentable a) => Fragmentable (Maybe a) where
       Just v1 -> singleton x <> fragmentize v1
 
 instance (Fragmentable a, Fragmentable b) => Fragmentable (Either a b) where
-  fragmentize (Left x) = singleton @(Either a b) (Left x) <> fragmentize x
-  fragmentize (Right x) = singleton @(Either a b) (Right x) <> fragmentize x
+  fragmentize (Left x) =
+    singleton @(Either a b) (Left x)
+      <> fragmentize x
+  fragmentize (Right x) =
+    singleton @(Either a b) (Right x)
+      <> fragmentize x
 
 instance (Fragmentable a) => Fragmentable [a] where
   fragmentize [] = singleton @[a] []
-  fragmentize (x : xs) = singleton @[a] (x : xs) <> fragmentize x <> fragmentize xs
+  fragmentize (x : xs) =
+    singleton @[a] (x : xs)
+      <> fragmentize x
+      <> fragmentize xs
 
 instance (Fragmentable k, Fragmentable v) => Fragmentable (Map k v) where
-  fragmentize m = mconcat [fragmentize k <> fragmentize v | (k, v) <- Map.toList m]
+  fragmentize m =
+    mconcat
+      [ fragmentize k <> fragmentize v
+      | (k, v) <- Map.toList m
+      ]
 
 -- Tuple instances
 
-instance (Fragmentable a, Fragmentable b) => Fragmentable (a, b) where
-  fragmentize (a, b) = singleton @(a, b) (a, b) <> fragmentize a <> fragmentize b
+instance
+  ( Fragmentable a
+  , Fragmentable b
+  )
+  => Fragmentable (a, b)
+  where
+  fragmentize (a, b) =
+    singleton (a, b)
+      <> fragmentize a
+      <> fragmentize b
 
-instance (Fragmentable a, Fragmentable b, Fragmentable c) => Fragmentable (a, b, c) where
-  fragmentize (a, b, c) = singleton @(a, b, c) (a, b, c) <> fragmentize a <> fragmentize b <> fragmentize c
+instance
+  ( Fragmentable a
+  , Fragmentable b
+  , Fragmentable c
+  )
+  => Fragmentable (a, b, c)
+  where
+  fragmentize (a, b, c) =
+    singleton (a, b, c)
+      <> fragmentize a
+      <> fragmentize b
+      <> fragmentize c
 
-instance (Fragmentable a, Fragmentable b, Fragmentable c, Fragmentable d) => Fragmentable (a, b, c, d) where
-  fragmentize (a, b, c, d) = singleton @(a, b, c, d) (a, b, c, d) <> fragmentize a <> fragmentize b <> fragmentize c <> fragmentize d
+instance
+  ( Fragmentable a
+  , Fragmentable b
+  , Fragmentable c
+  , Fragmentable d
+  )
+  => Fragmentable (a, b, c, d)
+  where
+  fragmentize (a, b, c, d) =
+    singleton (a, b, c, d)
+      <> fragmentize a
+      <> fragmentize b
+      <> fragmentize c
+      <> fragmentize d
 
-instance (Fragmentable a, Fragmentable b, Fragmentable c, Fragmentable d, Fragmentable e) => Fragmentable (a, b, c, d, e) where
-  fragmentize (a, b, c, d, e) = singleton @(a, b, c, d, e) (a, b, c, d, e) <> fragmentize a <> fragmentize b <> fragmentize c <> fragmentize d <> fragmentize e
+instance
+  ( Fragmentable a
+  , Fragmentable b
+  , Fragmentable c
+  , Fragmentable d
+  , Fragmentable e
+  )
+  => Fragmentable (a, b, c, d, e)
+  where
+  fragmentize (a, b, c, d, e) =
+    singleton (a, b, c, d, e)
+      <> fragmentize a
+      <> fragmentize b
+      <> fragmentize c
+      <> fragmentize d
+      <> fragmentize e
 
-instance (Fragmentable a, Fragmentable b, Fragmentable c, Fragmentable d, Fragmentable e, Fragmentable f) => Fragmentable (a, b, c, d, e, f) where
-  fragmentize (a, b, c, d, e, f) = singleton @(a, b, c, d, e, f) (a, b, c, d, e, f) <> fragmentize a <> fragmentize b <> fragmentize c <> fragmentize d <> fragmentize e <> fragmentize f
+instance
+  ( Fragmentable a
+  , Fragmentable b
+  , Fragmentable c
+  , Fragmentable d
+  , Fragmentable e
+  , Fragmentable f
+  )
+  => Fragmentable (a, b, c, d, e, f)
+  where
+  fragmentize (a, b, c, d, e, f) =
+    singleton (a, b, c, d, e, f)
+      <> fragmentize a
+      <> fragmentize b
+      <> fragmentize c
+      <> fragmentize d
+      <> fragmentize e
+      <> fragmentize f
 
-instance (Fragmentable a, Fragmentable b, Fragmentable c, Fragmentable d, Fragmentable e, Fragmentable f, Fragmentable g) => Fragmentable (a, b, c, d, e, f, g) where
-  fragmentize (a, b, c, d, e, f, g) = singleton @(a, b, c, d, e, f, g) (a, b, c, d, e, f, g) <> fragmentize a <> fragmentize b <> fragmentize c <> fragmentize d <> fragmentize e <> fragmentize f <> fragmentize g
+instance
+  ( Fragmentable a
+  , Fragmentable b
+  , Fragmentable c
+  , Fragmentable d
+  , Fragmentable e
+  , Fragmentable f
+  , Fragmentable g
+  )
+  => Fragmentable (a, b, c, d, e, f, g)
+  where
+  fragmentize (a, b, c, d, e, f, g) =
+    singleton (a, b, c, d, e, f, g)
+      <> fragmentize a
+      <> fragmentize b
+      <> fragmentize c
+      <> fragmentize d
+      <> fragmentize e
+      <> fragmentize f
+      <> fragmentize g
 
-instance (Fragmentable a, Fragmentable b, Fragmentable c, Fragmentable d, Fragmentable e, Fragmentable f, Fragmentable g, Fragmentable h) => Fragmentable (a, b, c, d, e, f, g, h) where
-  fragmentize (a, b, c, d, e, f, g, h) = singleton @(a, b, c, d, e, f, g, h) (a, b, c, d, e, f, g, h) <> fragmentize a <> fragmentize b <> fragmentize c <> fragmentize d <> fragmentize e <> fragmentize f <> fragmentize g <> fragmentize h
+instance
+  ( Fragmentable a
+  , Fragmentable b
+  , Fragmentable c
+  , Fragmentable d
+  , Fragmentable e
+  , Fragmentable f
+  , Fragmentable g
+  , Fragmentable h
+  )
+  => Fragmentable (a, b, c, d, e, f, g, h)
+  where
+  fragmentize (a, b, c, d, e, f, g, h) =
+    singleton (a, b, c, d, e, f, g, h)
+      <> fragmentize a
+      <> fragmentize b
+      <> fragmentize c
+      <> fragmentize d
+      <> fragmentize e
+      <> fragmentize f
+      <> fragmentize g
+      <> fragmentize h
 
-instance (Fragmentable a, Fragmentable b, Fragmentable c, Fragmentable d, Fragmentable e, Fragmentable f, Fragmentable g, Fragmentable h, Fragmentable i) => Fragmentable (a, b, c, d, e, f, g, h, i) where
-  fragmentize (a, b, c, d, e, f, g, h, i) = singleton @(a, b, c, d, e, f, g, h, i) (a, b, c, d, e, f, g, h, i) <> fragmentize a <> fragmentize b <> fragmentize c <> fragmentize d <> fragmentize e <> fragmentize f <> fragmentize g <> fragmentize h <> fragmentize i
+instance
+  ( Fragmentable a
+  , Fragmentable b
+  , Fragmentable c
+  , Fragmentable d
+  , Fragmentable e
+  , Fragmentable f
+  , Fragmentable g
+  , Fragmentable h
+  , Fragmentable i
+  )
+  => Fragmentable (a, b, c, d, e, f, g, h, i)
+  where
+  fragmentize (a, b, c, d, e, f, g, h, i) =
+    singleton (a, b, c, d, e, f, g, h, i)
+      <> fragmentize a
+      <> fragmentize b
+      <> fragmentize c
+      <> fragmentize d
+      <> fragmentize e
+      <> fragmentize f
+      <> fragmentize g
+      <> fragmentize h
+      <> fragmentize i
 
-instance (Fragmentable a, Fragmentable b, Fragmentable c, Fragmentable d, Fragmentable e, Fragmentable f, Fragmentable g, Fragmentable h, Fragmentable i, Fragmentable j) => Fragmentable (a, b, c, d, e, f, g, h, i, j) where
-  fragmentize (a, b, c, d, e, f, g, h, i, j) = singleton @(a, b, c, d, e, f, g, h, i, j) (a, b, c, d, e, f, g, h, i, j) <> fragmentize a <> fragmentize b <> fragmentize c <> fragmentize d <> fragmentize e <> fragmentize f <> fragmentize g <> fragmentize h <> fragmentize i <> fragmentize j
+instance
+  ( Fragmentable a
+  , Fragmentable b
+  , Fragmentable c
+  , Fragmentable d
+  , Fragmentable e
+  , Fragmentable f
+  , Fragmentable g
+  , Fragmentable h
+  , Fragmentable i
+  , Fragmentable j
+  )
+  => Fragmentable (a, b, c, d, e, f, g, h, i, j)
+  where
+  fragmentize (a, b, c, d, e, f, g, h, i, j) =
+    singleton (a, b, c, d, e, f, g, h, i, j)
+      <> fragmentize a
+      <> fragmentize b
+      <> fragmentize c
+      <> fragmentize d
+      <> fragmentize e
+      <> fragmentize f
+      <> fragmentize g
+      <> fragmentize h
+      <> fragmentize i
+      <> fragmentize j
