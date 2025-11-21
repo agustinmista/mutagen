@@ -41,7 +41,6 @@ library
     Test.Mutagen.Mutation
     Test.Mutagen.Property
     Test.Mutagen.Report
-    Test.Mutagen.Shell
     Test.Mutagen.TH
     Test.Mutagen.Tracer
     Test.Mutagen.Tracer.Plugin

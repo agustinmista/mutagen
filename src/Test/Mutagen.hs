@@ -8,7 +8,6 @@ module Test.Mutagen
   , module Test.Mutagen.Mutation
   , module Test.Mutagen.Property
   , module Test.Mutagen.Report
-  , module Test.Mutagen.Shell
   , module Test.Mutagen.Tracer.Annotation
   , module Test.QuickCheck.Arbitrary
   , module Test.QuickCheck.Gen
@@ -23,7 +22,6 @@ import Test.Mutagen.Mutant
 import Test.Mutagen.Mutation
 import Test.Mutagen.Property
 import Test.Mutagen.Report
-import Test.Mutagen.Shell
 import Test.Mutagen.Test.Driver
 import Test.Mutagen.Tracer.Annotation
 import Test.QuickCheck.Arbitrary
