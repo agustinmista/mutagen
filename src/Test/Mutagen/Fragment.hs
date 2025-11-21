@@ -54,6 +54,10 @@ instance Ord Fragment where
 instance Show Fragment where
   show (Fragment a) = "Fragment(" <> show a <> ")"
 
+-- | Lift a item into a singleton fragment set
+singleton :: (IsFragment a) => a -> Set Fragment
+singleton = Set.singleton . Fragment
+
 -- ** Fragmentable class
 
 -- | Types that can be fragmented into smaller pieces
@@ -61,10 +65,6 @@ class (IsFragment a) => Fragmentable a where
   -- | Extract fragments from a value
   fragmentize :: a -> Set Fragment
   fragmentize = singleton
-
--- | Lift a item into a singleton fragment set
-singleton :: (Fragmentable a) => a -> Set Fragment
-singleton = Set.singleton . Fragment
 
 {-------------------------------------------------------------------------------
 -- * Type-indexed fragment store
@@ -98,14 +98,14 @@ storeFragments
   -> a
   -> FragmentStore
   -> FragmentStore
-storeFragments f a (FragmentStore store) =
+storeFragments typeFilter a (FragmentStore store) =
   FragmentStore (Map.unionWith Set.union store (collect a))
   where
     collect = foldr insertIfAllowed Map.empty . fragmentize
 
-    insertIfAllowed a' store'
-      | isFragmentTypeAllowed f (typeOf a) =
-          Map.insertWith Set.union (typeOf a) (Set.singleton a') store'
+    insertIfAllowed (Fragment a') store'
+      | isFragmentTypeAllowed typeFilter (typeOf a') =
+          Map.insertWith Set.union (typeOf a') (singleton a') store'
       | otherwise =
           store'
 

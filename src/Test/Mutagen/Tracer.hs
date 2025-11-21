@@ -1,4 +1,4 @@
--- | Public API for the Mutagen Tracer plugin.
+-- | Public API for the Mutagen Tracer plugin
 module Test.Mutagen.Tracer
   ( plugin
   , __trace__

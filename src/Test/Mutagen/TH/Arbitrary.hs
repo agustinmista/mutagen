@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- | Derive an 'Arbitrary' instance for a given data type.
+-- | Derive an 'Arbitrary' instance for a given data type
 module Test.Mutagen.TH.Arbitrary
   ( deriveArbitrary
   )

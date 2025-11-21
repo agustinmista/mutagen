@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE PatternSynonyms #-}
 
--- | GHC source plugin that instruments Haskell code to include tracing calls.
+-- | GHC source plugin that instruments Haskell code to include tracing calls
 --
 -- You can enable this plugin in different ways:
 --

@@ -38,6 +38,7 @@ import qualified Brick.Widgets.List as Brick
 import Control.Monad (forM_, void)
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Reader (ReaderT (..), ask, lift)
+import Control.Monad.State (StateT)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.Vector as Vector
 import Graphics.Vty (Event (..), Key (..), Modifier (..))
@@ -85,6 +86,10 @@ instance (Monad m) => MonadTerminal (TerminalT m) where
   pretty val = TerminalT $ do
     tui <- ask
     lift $ tuiPretty tui val
+
+instance (MonadIO m, MonadTerminal m) => MonadTerminal (StateT s m) where
+  message msg = lift $ message msg
+  pretty val = lift $ pretty val
 
 {-------------------------------------------------------------------------------
 -- * Basic stdout terminal interface
@@ -194,7 +199,7 @@ printBatchStatus batch = do
       forM_ ps $ \pos ->
         pretty pos
 
--- | Print global statistics about the testing session
+-- | Print detailed statistics about the testing session
 printGlobalStats :: (MonadIO m, MonadTerminal m) => MutagenState -> m ()
 printGlobalStats st = do
   message
@@ -251,33 +256,35 @@ printGlobalStats st = do
   message
     $ "* Fragment store size: "
       <> show (fragmentStoreSize (stFragmentStore st))
-  now <- round <$> liftIO getPOSIXTime
+  now <- liftIO getPOSIXTime
   let elapsed = now - stStartTime st
   message
     $ "* Elapsed time: "
       <> show elapsed
-      <> " seconds (+/- 1 second)"
+      <> " seconds"
   message
     "=================="
 
+-- | Print short statistics about the testing session
 printShortStats :: (MonadTerminal m) => MutagenState -> m ()
 printShortStats st = do
   let total = stNumPassed st + stNumDiscarded st
+  let mutated = stNumMutatedFromPassed st + stNumMutatedFromDiscarded st
   message
     $ "Ran "
       <> show total
       <> " tests ("
-      <> show (percentage stNumPassed total)
+      <> show (percentage (stNumPassed st) total)
       <> "% passed, "
-      <> show (percentage stNumInteresting total)
+      <> show (percentage (stNumInteresting st) total)
       <> "% interesting, "
-      <> show (percentage stNumGenerated total)
+      <> show (percentage (stNumGenerated st) total)
       <> "% generated, "
-      <> show (percentage (\s -> stNumMutatedFromPassed s + stNumMutatedFromDiscarded s) total)
+      <> show (percentage mutated total)
       <> "% mutated)"
   where
-    percentage :: (MutagenState -> Int) -> Int -> Int
-    percentage f n = round @Double ((fromIntegral (f st) / fromIntegral n) * 100)
+    percentage :: Int -> Int -> Int
+    percentage n m = round @Double ((fromIntegral n / fromIntegral m) * 100)
 
 {-------------------------------------------------------------------------------
 -- * Helpers

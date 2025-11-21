@@ -3,7 +3,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 
--- | Trace store implementations based on different trace types.
+-- | Trace store implementations based on different trace types
 module Test.Mutagen.Tracer.Store
   ( -- * Trace types
     TraceType (..)
@@ -24,13 +24,13 @@ import Test.Mutagen.Tracer.Store.Types (TraceType (..))
 -- * Trace type selection at runtime
 -------------------------------------------------------------------------------}
 
--- | Singleton version of 'TraceType'.
+-- | Singleton version of 'TraceType'
 data STraceType trace where
   SBitmap :: STraceType Bitmap
   STree :: STraceType Tree
 
 -- | Eliminate a 'TraceType' by providing a continuation that works for all
--- possible trace types.
+-- possible trace types
 withTraceType
   :: TraceType
   -> (forall trace. (TraceStoreImpl trace) => STraceType trace -> r)
