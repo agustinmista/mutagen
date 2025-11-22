@@ -5,15 +5,15 @@
 
 -- | Runtime trace types
 module Test.Mutagen.Tracer.Store.Types
-  ( -- * Trace types
-    TraceType (..)
+  ( -- * Tracing backends
+    TraceBackend (..)
   )
 where
 
 {-------------------------------------------------------------------------------
--- * Trace types
+-- * Tracing backends
 -------------------------------------------------------------------------------}
 
--- | Runtime trace types
-data TraceType = Bitmap | Tree
+-- | Tracing backends
+data TraceBackend = Bitmap | Tree
   deriving (Eq, Show)

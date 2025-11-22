@@ -8,7 +8,7 @@ module Test.Mutagen.Tracer.Store.API
   )
 where
 
-import Test.Mutagen.Tracer.Store.Types (TraceType)
+import Test.Mutagen.Tracer.Store.Types (TraceBackend)
 import Test.Mutagen.Tracer.Trace (Trace)
 
 {-------------------------------------------------------------------------------
@@ -16,9 +16,15 @@ import Test.Mutagen.Tracer.Trace (Trace)
 -------------------------------------------------------------------------------}
 
 -- | Generic trace store interface
-class TraceStoreImpl (trace :: TraceType) where
+--
+-- NOTE: in this context, "store" refers to a data structure that one can "save"
+-- traces into, while getting some useful kind of signal in return (i.e. a
+-- 'SaveTraceResult'). It does not refer to a persistence mechanism that would
+-- allow one to get a trace back in any way. In practice, most implementation
+-- would be lossy to some extent to keep memory usage low.
+class TraceStoreImpl (trace :: TraceBackend) where
   data TraceStore trace
-  -- ^ Concrete trace store type for the given tracing method
+  -- ^ Concrete trace store type for the given tracing backend
 
   type SaveTraceResult trace
   -- ^ Output type of 'saveTrace' for the given store

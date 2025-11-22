@@ -17,7 +17,7 @@ import Control.Monad (forM_, replicateM_)
 import Data.Array.IO (IOUArray, getBounds, newArray, readArray, writeArray)
 import Data.Foldable (foldrM)
 import Test.Mutagen.Tracer.Store.API (TraceStoreImpl (..))
-import Test.Mutagen.Tracer.Store.Types (TraceType (Bitmap))
+import Test.Mutagen.Tracer.Store.Types (TraceBackend (Bitmap))
 import Test.Mutagen.Tracer.Trace (Trace (..))
 
 {-------------------------------------------------------------------------------

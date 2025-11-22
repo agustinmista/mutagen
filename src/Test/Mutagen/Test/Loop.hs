@@ -76,7 +76,7 @@ import Test.Mutagen.Test.Terminal
   , printGlobalStats
   , printShortStats
   )
-import Test.Mutagen.Tracer.Store (STraceType (..), TraceStoreImpl (..))
+import Test.Mutagen.Tracer.Store (STraceBackend (..), TraceStoreImpl (..))
 import Test.Mutagen.Tracer.Trace (Trace (..), truncateTrace, withTrace)
 import Test.QuickCheck.Gen (unGen)
 
@@ -488,11 +488,11 @@ execPropRunner st args
 savePassedTraceWithPrio :: MutagenState -> Trace -> IO (Int, Int)
 savePassedTraceWithPrio st tr =
   case st of
-    MutagenState{stTraceType = SBitmap, stPassedTraceLog = store} -> do
+    MutagenState{stTraceBackend = SBitmap, stPassedTraceStore = store} -> do
       new <- saveTrace tr store
       let prio = stNumTracingNodes st - new
       return (new, prio)
-    MutagenState{stTraceType = STree, stPassedTraceLog = store} -> do
+    MutagenState{stTraceBackend = STree, stPassedTraceStore = store} -> do
       (new, depth) <- saveTrace tr store
       let prio = depth
       return (new, prio)
@@ -502,11 +502,11 @@ savePassedTraceWithPrio st tr =
 saveDiscardedTraceWithPrio :: MutagenState -> Trace -> IO (Int, Int)
 saveDiscardedTraceWithPrio st tr =
   case st of
-    MutagenState{stTraceType = SBitmap, stDiscardedTraceLog = store} -> do
+    MutagenState{stTraceBackend = SBitmap, stDiscardedTraceStore = store} -> do
       new <- saveTrace tr store
       let prio = stNumTracingNodes st - new
       return (new, prio)
-    MutagenState{stTraceType = STree, stDiscardedTraceLog = store} -> do
+    MutagenState{stTraceBackend = STree, stDiscardedTraceStore = store} -> do
       (new, depth) <- saveTrace tr store
       let prio = depth
       return (new, prio)
@@ -517,7 +517,7 @@ withPassedTraceStore
   -> (forall trace. (TraceStoreImpl trace) => TraceStore trace -> r)
   -> r
 withPassedTraceStore st k =
-  case st of MutagenState{stPassedTraceLog = store} -> k store
+  case st of MutagenState{stPassedTraceStore = store} -> k store
 
 -- | Run a computation using the discarded trace store
 withDiscardedTraceStore
@@ -525,4 +525,4 @@ withDiscardedTraceStore
   -> (forall trace. (TraceStoreImpl trace) => TraceStore trace -> r)
   -> r
 withDiscardedTraceStore st k =
-  case st of MutagenState{stDiscardedTraceLog = store} -> k store
+  case st of MutagenState{stDiscardedTraceStore = store} -> k store

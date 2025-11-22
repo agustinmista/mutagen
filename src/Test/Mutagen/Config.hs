@@ -19,7 +19,7 @@ module Test.Mutagen.Config
 
     -- * Re-exports
   , FragmentTypeFilter
-  , TraceType (..)
+  , TraceBackend (..)
   )
 where
 
@@ -28,7 +28,7 @@ import Data.Typeable (Proxy (..), Typeable, typeRep)
 import Test.Mutagen.Fragment (FragmentTypeFilter (..))
 import Test.Mutagen.Mutation (MutationOrder, levelorder)
 import Test.Mutagen.Property (Args (..), IsArgs)
-import Test.Mutagen.Tracer.Store (TraceType (..))
+import Test.Mutagen.Tracer.Store (TraceBackend (..))
 
 {-------------------------------------------------------------------------------
 -- * Configuration options
@@ -85,8 +85,8 @@ data Config
   , examples :: [Args]
   -- ^ Initial inputs examples used to populate the global fragment store before
   -- the testing loop starts.
-  , traceType :: TraceType
-  -- ^ The tracing log mechanism. Either `Tree` or `Bitmap`. `Tree` uses
+  , traceBackend :: TraceBackend
+  -- ^ The tracing mechanism. Either `Tree` or `Bitmap`. `Tree` uses
   -- prefix-based traces (quite expensive but more precise). `Bitmap` uses
   -- edge-based traces (cheaper but less precise).
   , maxTraceLength :: Maybe Int
@@ -118,7 +118,7 @@ defaultConfig =
     , randomFragments = 10
     , filterFragments = mempty
     , examples = []
-    , traceType = Bitmap
+    , traceBackend = Bitmap
     , maxTraceLength = Nothing
     , chatty = False
     , debug = NoDebug

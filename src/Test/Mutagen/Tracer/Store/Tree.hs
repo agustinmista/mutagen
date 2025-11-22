@@ -19,7 +19,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Tree as Tree
 import Data.Tree.Pretty (drawVerticalForest)
 import Test.Mutagen.Tracer.Store.API (TraceStoreImpl (..))
-import Test.Mutagen.Tracer.Store.Types (TraceType (Tree))
+import Test.Mutagen.Tracer.Store.Types (TraceBackend (Tree))
 import Test.Mutagen.Tracer.Trace (Trace (..), TraceNode)
 
 {-------------------------------------------------------------------------------
