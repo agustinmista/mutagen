@@ -21,9 +21,10 @@ module Test.Mutagen.Test.State
   , updateDiscardedQueue
   , setFragmentStore
   , updateFragmentStore
-  , incNumTraceLogResets
+  , incNumTraceStoreResets
   , incNumPassed
   , incNumDiscarded
+  , incNumFailed
   , incNumGenerated
   , incNumMutatedFromPassed
   , incNumMutatedFromDiscarded
@@ -36,10 +37,13 @@ module Test.Mutagen.Test.State
     -- * State-related utilities
   , timedOut
   , computeSize
+  , nextCounterexamplePath
   )
 where
 
+import Data.List (elemIndex)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
+import System.FilePath ((<.>))
 import Test.Mutagen.Config (Config (..), DebugMode (..))
 import Test.Mutagen.Fragment
   ( FragmentStore
@@ -97,6 +101,10 @@ data MutagenState
   -- ^ Mirrored from 'Config.filterFragments'
   , stMaxTraceLength :: !(Maybe Int)
   -- ^ Mirrored from 'Config.maxTraceLength'
+  , stKeepGoing :: !Bool
+  -- ^ Mirrored from 'Config.keepGoing'
+  , stSaveCounterexamples :: !(Maybe FilePath)
+  -- ^ Mirrored from 'Config.saveCounterexamples'
   , stChatty :: !Bool
   -- ^ Mirrored from 'Config.chatty'
   , stDebug :: !DebugMode
@@ -143,14 +151,16 @@ data MutagenState
   -- ^ Number of passed test cases
   , stNumDiscarded :: !Int
   -- ^ Number of discarded test cases
+  , stNumFailed :: !Int
+  -- ^ Number of failed test cases (only useful when 'keepGoing' is enabled)
   , stNumInteresting :: !Int
   -- ^ Number of interesting test cases
   , stNumBoring :: !Int
   -- ^ Number of boring test cases
   , stNumTestsSinceLastInteresting :: !Int
   -- ^ Number of test cases since the last interesting one
-  , stNumTraceLogResets :: !Int
-  -- ^ Number of times the trace logs have been reset
+  , stNumTraceStoreResets :: !Int
+  -- ^ Number of times the trace store have been reset
   }
 
 -- | Initialize the internal state
@@ -189,6 +199,8 @@ initMutagenState cfg (Property gen runner) = do
         , stUseFragments = useFragments cfg
         , stFilterFragments = filterFragments cfg
         , stMaxTraceLength = maxTraceLength cfg
+        , stKeepGoing = keepGoing cfg
+        , stSaveCounterexamples = saveCounterexamples cfg
         , stChatty = chatty cfg || debug cfg /= NoDebug
         , stDebug = debug cfg
         , stTui = tui cfg
@@ -212,11 +224,12 @@ initMutagenState cfg (Property gen runner) = do
         , stNumRandMutants = 0
         , stNumFragMutants = 0
         , stNumPassed = 0
+        , stNumFailed = 0
         , stNumDiscarded = 0
         , stNumInteresting = 0
         , stNumBoring = 0
         , stNumTestsSinceLastInteresting = 0
-        , stNumTraceLogResets = 0
+        , stNumTraceStoreResets = 0
         }
   where
     fragmentStoreFromExamples =
@@ -276,9 +289,9 @@ updateFragmentStore f st =
 
 -- ** Incrementers
 
-incNumTraceLogResets :: MutagenState -> MutagenState
-incNumTraceLogResets st =
-  st{stNumTraceLogResets = stNumTraceLogResets st + 1}
+incNumTraceStoreResets :: MutagenState -> MutagenState
+incNumTraceStoreResets st =
+  st{stNumTraceStoreResets = stNumTraceStoreResets st + 1}
 
 incNumPassed :: MutagenState -> MutagenState
 incNumPassed st =
@@ -287,6 +300,10 @@ incNumPassed st =
 incNumDiscarded :: MutagenState -> MutagenState
 incNumDiscarded st =
   st{stNumDiscarded = stNumDiscarded st + 1}
+
+incNumFailed :: MutagenState -> MutagenState
+incNumFailed st =
+  st{stNumFailed = stNumFailed st + 1}
 
 incNumGenerated :: MutagenState -> MutagenState
 incNumGenerated st =
@@ -359,3 +376,19 @@ computeSize st
         `min` stMaxGenSize st
   where
     roundTo n m = (n `div` m) * m
+
+-- | Compute the path for the next counterexample to be saved.
+--
+-- If no counterexamples are to be saved, returns 'Nothing'. If a path template
+-- is provided (containing '@'), replaces '@' with the current failure counter.
+-- Otherwise, appends the counter to the given path.
+nextCounterexamplePath :: MutagenState -> Maybe FilePath
+nextCounterexamplePath st
+  | Just path <- stSaveCounterexamples st =
+      case elemIndex '@' path of
+        Just n -> Just (replace n (show (stNumFailed st + 1)) path)
+        Nothing -> Just (path <.> show (stNumFailed st + 1))
+  | otherwise = Nothing
+  where
+    replace n s str =
+      let (before, after) = splitAt n str in before <> s <> drop 1 after

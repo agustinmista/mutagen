@@ -50,13 +50,15 @@ import Test.Mutagen.Test.State
   , incMutantKindCounter
   , incNumBoring
   , incNumDiscarded
+  , incNumFailed
   , incNumGenerated
   , incNumInteresting
   , incNumMutatedFromDiscarded
   , incNumMutatedFromPassed
   , incNumPassed
   , incNumTestsSinceLastInteresting
-  , incNumTraceLogResets
+  , incNumTraceStoreResets
+  , nextCounterexamplePath
   , resetNumTestsSinceLastInteresting
   , setAutoResetAfter
   , setCurrentGenSize
@@ -102,7 +104,8 @@ loop st
   -- We discarded too many tests
   -- ==> give up
   | stNumDiscarded st
-      >= stMaxDiscardRatio st * max (stNumPassed st) (stMaxSuccess st) =
+      >= stMaxDiscardRatio st * max (stNumPassed st) (stMaxSuccess st)
+      && not (stKeepGoing st) =
       giveUp st "too many discarded tests"
   -- The time bugdet is over, we check this every so often
   -- ==> give up
@@ -127,7 +130,7 @@ loop st
             st
               & setAutoResetAfter ((* 2) <$> (stAutoResetAfter st))
               & setRandomMutations (stRandomMutations st * 2)
-              & incNumTraceLogResets
+              & incNumTraceStoreResets
               & resetNumTestsSinceLastInteresting
       newTest st'
   -- Nothing new under the sun
@@ -148,11 +151,9 @@ newTest st = do
   stopOnDebugMode (stDebug st'') result
   -- check the test result and report a counterexample or continue
   case result of
-    -- Test failed and it was not supposed to, report counterexample
-    Failed | stExpect st'' -> counterexample st'' args result
-    -- Test failed but it was expected to, stop testing
-    Failed -> success st''
-    -- Test passed or discarded, continue the loop
+    -- Test failed, report counterexample
+    Failed -> counterexample st'' args result
+    -- Test passed or discarded, continue the loop directly
     _ -> loop st''
   where
     -- Stop execution if in debug mode
@@ -165,6 +166,47 @@ newTest st = do
       message "Press enter to continue ..."
       void (liftIO getLine)
 
+-- | Found a bug!
+--
+-- NOTE: if 'keepGoing' is disabled, this is also a terminal state.
+counterexample :: (MonadMutagen m) => MutagenState -> Args -> Result -> m Report
+counterexample st args result = do
+  message "Found counterexample!"
+  pretty args
+  message "Reason of failure:"
+  case resultReason result of
+    Just failureReason -> message failureReason
+    Nothing -> message "assertion failed"
+  case resultException result of
+    Just exc -> do
+      message "The exception was:"
+      message (show exc)
+    Nothing -> return ()
+  case nextCounterexamplePath st of
+    Just path -> do
+      message $ "Saving counterexample to: " <> path
+      liftIO $ writeFile path (show args)
+    Nothing -> return ()
+  let st' = st & incNumFailed
+  next st'
+  where
+    next st'
+      -- Check if we should keep going
+      | stKeepGoing st' = do
+          message $ "Failed " <> show (stNumFailed st) <> " times, continuing..."
+          loop st'
+      -- Check if this was an expected failure and mask the report as success
+      | not (stExpect st') =
+          success st'
+      -- Otherwise, report the counterexample
+      | otherwise =
+          return
+            Counterexample
+              { numPassed = stNumPassed st'
+              , numDiscarded = stNumDiscarded st'
+              , failingArgs = args
+              }
+
 -- * Terminal states
 
 -- | All tests passed successfully
@@ -175,6 +217,7 @@ success st = do
     Success
       { numPassed = stNumPassed st
       , numDiscarded = stNumDiscarded st
+      , numFailed = stNumFailed st
       }
 
 -- | Too many discarded tests
@@ -186,27 +229,6 @@ giveUp st gaveUpReason = do
       { reason = gaveUpReason
       , numPassed = stNumPassed st
       , numDiscarded = stNumDiscarded st
-      }
-
--- | Found a bug!
-counterexample :: (MonadMutagen m) => MutagenState -> Args -> Result -> m Report
-counterexample st args result = do
-  message "Found counterexample!"
-  pretty args
-  message "*** Reason of failure:"
-  case resultReason result of
-    Just failureReason -> message failureReason
-    Nothing -> message "assertion failed"
-  case resultException result of
-    Just exc -> do
-      message "*** The exception was:"
-      message (show exc)
-    Nothing -> return ()
-  return
-    Counterexample
-      { numPassed = stNumPassed st
-      , numDiscarded = stNumDiscarded st
-      , failingArgs = args
       }
 
 -- | Expected failure did not occur

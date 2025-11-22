@@ -43,7 +43,10 @@ main = do
 config :: Config
 config =
   defaultConfig
-    { maxGenSize =
+    { maxSuccess =
+        -- Number of successful tests to find before stopping
+        10000
+    , maxGenSize =
         -- Max generation size
         5
     , useLazyPrunning =
@@ -61,7 +64,13 @@ config =
         -- Only store fragments of the following types
         allow @ASCII
           <> allow @(RE ASCII)
-    , chatty =
+    , -- , keepGoing =
+      --     -- Keep going after finding the first counterexample
+      --     True
+      -- , saveCounterexamples =
+      --     -- Save found counterexamples to a file
+      --     Just "tmp/prop_optimize_@.txt"
+      chatty =
         -- Print extra info
         False
     , debug =

@@ -92,6 +92,19 @@ data Config
   , maxTraceLength :: Maybe Int
   -- ^ The maximim trace length to consider. Useful in conjunction with the
   -- `Tree` `traceMethod` when testing lengthy properties.
+  , keepGoing :: Bool
+  -- ^ Whether to keep searching for more counterexamples after finding the
+  -- first one. If set, Mutagen will stop only when reaching the maximum number
+  -- of successful tests or the timeout, without giving up in the presence of
+  -- too many discards. Reports will always be a 'Success' or a timeout.
+  , saveCounterexamples :: Maybe FilePath
+  -- ^ If set to a 'FilePath', save found counterexamples to the given file.
+  -- Accepts templated file paths, e.g., "counterexample_@.hs", where "@" will
+  -- be replaced by a counter. This is useful in combination with 'keepGoing'
+  -- to save multiple counterexamples.
+  --
+  -- NOTE: if 'keepGoing' is enabled and the counterexample path does not
+  -- contain "@", then the counter is appended to its end.
   , chatty :: Bool
   -- ^ Print extra info.
   , debug :: DebugMode
@@ -120,6 +133,8 @@ defaultConfig =
     , examples = []
     , traceBackend = Bitmap
     , maxTraceLength = Nothing
+    , keepGoing = False
+    , saveCounterexamples = Nothing
     , chatty = False
     , debug = NoDebug
     , tui = False

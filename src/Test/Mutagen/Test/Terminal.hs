@@ -219,7 +219,9 @@ printGlobalStats st = do
       <> show (stNumPassed st)
       <> " tests ("
       <> show (stNumDiscarded st)
-      <> " discarded)"
+      <> " discarded, "
+      <> show (stNumFailed st)
+      <> " failed)"
   message
     $ "* Tests origin: "
       <> show (stNumGenerated st)
@@ -248,8 +250,8 @@ printGlobalStats st = do
       <> ", using "
       <> show (stRandomMutations st)
       <> " random mutations (after "
-      <> show (stNumTraceLogResets st)
-      <> " trace log resets)"
+      <> show (stNumTraceStoreResets st)
+      <> " trace store resets)"
   message
     $ "* Current generation size: "
       <> show (stCurrentGenSize st)
@@ -268,10 +270,10 @@ printGlobalStats st = do
 -- | Print short statistics about the testing session
 printShortStats :: (MonadTerminal m) => MutagenState -> m ()
 printShortStats st = do
-  let total = stNumPassed st + stNumDiscarded st
+  let total = stNumPassed st + stNumDiscarded st + stNumFailed st
   let mutated = stNumMutatedFromPassed st + stNumMutatedFromDiscarded st
   message
-    $ "Ran "
+    $ "Executed "
       <> show total
       <> " tests ("
       <> show (percentage (stNumPassed st) total)

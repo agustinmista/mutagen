@@ -20,6 +20,8 @@ data Report
       -- ^ Number of passed tests
       , numDiscarded :: Int
       -- ^ Number of discarded tests
+      , numFailed :: Int
+      -- ^ Number of failed tests
       }
   | -- | The property failed for the given arguments
     Counterexample
