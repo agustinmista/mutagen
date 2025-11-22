@@ -218,7 +218,7 @@ createOrInheritMutationBatch
   randomMutations
   maxGenSize
   randomFragments
-  mutationLimit
+  maxMutationDepth
   args
   parentBatch
   pos
@@ -238,7 +238,7 @@ createOrInheritMutationBatch
           randomMutations
           maxGenSize
           randomFragments
-          mutationLimit
+          maxMutationDepth
           pos
           isPassed
           args

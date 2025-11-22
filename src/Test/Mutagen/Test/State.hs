@@ -81,8 +81,8 @@ data MutagenState
   -- ^ Mirrored from 'Config.maxGenSize'
   , stRandomMutations :: !Int
   -- ^ Mirrored from 'Config.randomMutations'
-  , stMutationLimit :: !Int
-  -- ^ Mirrored from 'Config.mutationLimit'
+  , stMaxMutationDepth :: !Int
+  -- ^ Mirrored from 'Config.maxMutationDepth'
   , stAutoResetAfter :: !(Maybe Int)
   -- ^ Mirrored from 'Config.autoResetAfter'
   , stUseLazyPrunning :: !Bool
@@ -182,7 +182,7 @@ initMutagenState cfg (Property gen runner) = do
         , stMaxGenSize = maxGenSize cfg
         , stRandomMutations = randomMutations cfg
         , stRandomFragments = randomFragments cfg
-        , stMutationLimit = maybe (maxGenSize cfg) id (mutationLimit cfg)
+        , stMaxMutationDepth = maybe (maxGenSize cfg) id (maxMutationDepth cfg)
         , stAutoResetAfter = autoResetAfter cfg
         , stUseLazyPrunning = useLazyPrunning cfg
         , stMutationOrder = mutationOrder cfg

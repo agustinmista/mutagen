@@ -53,7 +53,7 @@ data Config
   -- ^ Number of times to sample the generator associated to a random mutant.
   -- It can be automatically increased over time if `autoResetAfter` is not set
   -- to `Nothing`.
-  , mutationLimit :: Maybe Int
+  , maxMutationDepth :: Maybe Int
   -- ^ The maximum number of ancestors a test case can have before being
   -- discarded. Useful to avoid mutating recursive structures indefinetely.
   -- Defaults to `maxGenSize` if set to `Nothing`.
@@ -110,7 +110,7 @@ defaultConfig =
     , expect = True
     , maxGenSize = 10
     , randomMutations = 1
-    , mutationLimit = Nothing
+    , maxMutationDepth = Nothing
     , autoResetAfter = Just 1000
     , useLazyPrunning = False
     , mutationOrder = levelorder

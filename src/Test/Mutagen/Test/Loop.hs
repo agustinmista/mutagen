@@ -393,7 +393,7 @@ runTestCase args parent st = do
             (stRandomMutations st)
             (stMaxGenSize st)
             (stRandomFragments st)
-            (stMutationLimit st)
+            (stMaxMutationDepth st)
             args
             parent
             evaluatedPos
