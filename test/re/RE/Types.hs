@@ -4,8 +4,15 @@
 
 module RE.Types where
 
-import Data.String
+import Data.String (IsString (..))
 import Test.Mutagen
+  ( Arbitrary (..)
+  , Fragmentable
+  , Lazy (..)
+  , Mutable (..)
+  , elements
+  )
+import Test.Mutagen.Mutant (Mutant (..))
 import qualified Test.Mutagen.TH as TH
 
 -- | Regular expressions

@@ -6,7 +6,7 @@ module Test.Mutagen.Report
   )
 where
 
-import Test.Mutagen.Property
+import Test.Mutagen.Property (Args)
 
 {-------------------------------------------------------------------------------
 -- * Testing reports

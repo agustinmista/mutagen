@@ -26,17 +26,16 @@ module Test.Mutagen.Mutation
   )
 where
 
--- For providing some default Mutable instances
-import Data.Char
+import Data.Char (chr)
 import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Tree
-import Data.Typeable
-import Data.Word
-import Test.Mutagen.Fragment
-import Test.Mutagen.Mutant
-import Test.QuickCheck
+import Data.Tree (Tree (..), levels)
+import Data.Typeable (Typeable)
+import Data.Word (Word16, Word32, Word64, Word8)
+import Test.Mutagen.Fragment (sampleFragments)
+import Test.Mutagen.Mutant (Mutant (..))
+import Test.QuickCheck (Arbitrary (..), arbitrary)
 
 {-------------------------------------------------------------------------------
 -- * Mutable types

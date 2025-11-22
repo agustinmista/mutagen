@@ -29,14 +29,32 @@ module Test.Mutagen.Tracer.Plugin
   )
 where
 
-import Control.Monad
+import Control.Monad ((>=>))
 import Control.Monad.Writer (MonadIO, WriterT, lift, runWriterT, tell)
 import Data.Generics (Data, everywhereM, listify, mkM)
-import Data.IORef
+import Data.IORef (IORef, atomicModifyIORef', newIORef)
 import GHC.Hs
+  ( AnnDecl (..)
+  , AnnProvenance (..)
+  , GRHS (..)
+  , GhcPs
+  , HsExpr (..)
+  , HsLit (..)
+  , HsMatchContext (..)
+  , HsModule (..)
+  , HsParsedModule (..)
+  , LHsExpr
+  , Match (..)
+  , gHsPar
+  , getLocA
+  , noExtField
+  , noLocA
+  , simpleImportDecl
+  )
+import qualified GHC.Hs as GHC
 import GHC.Plugins hiding ((<>))
 import GHC.Types.Name.Occurrence as Name
-import GHC.Types.SourceText
+import GHC.Types.SourceText (mkIntegralLit)
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Mutagen.Tracer.Metadata
   ( ModuleMetadata (..)
@@ -46,7 +64,7 @@ import Test.Mutagen.Tracer.Metadata
   , mkSingleModuleTracerMetadata
   , saveTracerMetadata
   )
-import Test.Mutagen.Tracer.Trace
+import Test.Mutagen.Tracer.Trace (TraceNode)
 
 {-------------------------------------------------------------------------------
 -- * GHC Plugin
@@ -299,9 +317,9 @@ paren x = noLocA (gHsPar x)
 -- | Apply one expression to another
 app :: LHsExpr GhcPs -> LHsExpr GhcPs -> LHsExpr GhcPs
 #if MIN_VERSION_ghc(9,10,1)
-app x y = noLocA (HsApp noExtField x y)
+app x y = noLocA (HsApp GHC.noExtField x y)
 #else
-app x y = noLocA (HsApp noComments x y)
+app x y = noLocA (HsApp GHC.noComments x y)
 #endif
 
 infixl 5 `app`
@@ -309,9 +327,9 @@ infixl 5 `app`
 -- | Build a numeric literal expression
 numLit :: Int -> LHsExpr GhcPs
 #if MIN_VERSION_ghc(9,10,1)
-numLit n = noLocA (HsLit noExtField (HsInt noExtField (mkIntegralLit n)))
+numLit n = noLocA (HsLit GHC.noExtField (HsInt noExtField (mkIntegralLit n)))
 #else
-numLit n = noLocA (HsLit noComments (HsInt noExtField (mkIntegralLit n)))
+numLit n = noLocA (HsLit GHC.noComments (HsInt noExtField (mkIntegralLit n)))
 #endif
 
 -- | Wrap an expression with the tracer function

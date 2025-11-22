@@ -28,14 +28,14 @@ module Test.Mutagen.Property
   )
 where
 
-import Data.Typeable
-import System.Timeout
+import Data.Typeable (Typeable, cast)
+import System.Timeout (timeout)
 import Test.Mutagen.Exception (AnException, discard, isDiscard, tryEvaluateIO)
-import Test.Mutagen.Fragment
-import Test.Mutagen.Lazy
-import Test.Mutagen.Mutation
+import Test.Mutagen.Fragment (Fragmentable (..))
+import Test.Mutagen.Lazy (Lazy (..))
+import Test.Mutagen.Mutation (Mutable (..))
 import Test.QuickCheck (Arbitrary, Gen, arbitrary)
-import Unsafe.Coerce
+import Unsafe.Coerce (unsafeCoerce)
 
 {-------------------------------------------------------------------------------
 -- * Property arguments

@@ -10,13 +10,11 @@ module Test.Mutagen.Lazy
   )
 where
 
-import Data.IORef
--- For providing some default Lazy instances
-
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Word
-import System.IO.Unsafe
+import Data.Word (Word16, Word32, Word64, Word8)
+import System.IO.Unsafe (unsafePerformIO)
 import Test.Mutagen.Mutation (Pos)
 
 {-------------------------------------------------------------------------------

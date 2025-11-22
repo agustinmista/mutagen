@@ -1,6 +1,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -11,17 +12,29 @@ module Test.Mutagen.Test.Loop
   )
 where
 
-import Control.Monad
+import Control.Monad (void, when)
 import Control.Monad.Extra (ifM)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Function ((&))
 import System.Random (split)
 import Test.Mutagen.Config (DebugMode (..))
-import Test.Mutagen.Fragment
-import Test.Mutagen.Lazy
-import Test.Mutagen.Mutation
+import Test.Mutagen.Fragment (storeFragments)
+import Test.Mutagen.Lazy (Lazy (..), readPosRef, resetPosRef)
+import Test.Mutagen.Mutation (Pos)
 import Test.Mutagen.Property
+  ( Args
+  , Result (..)
+  , protectProp
+  , resultException
+  , resultExpect
+  , unProp
+  , pattern Discarded
+  , pattern Failed
+  , pattern Passed
+  )
 import Test.Mutagen.Report
+  ( Report (..)
+  )
 import Test.Mutagen.Test.Queue
   ( MutationBatch (..)
   , MutationCandidate (..)
@@ -32,7 +45,37 @@ import Test.Mutagen.Test.Queue
   , nextMutation
   )
 import Test.Mutagen.Test.State
+  ( MutagenState (..)
+  , computeSize
+  , incMutantKindCounter
+  , incNumBoring
+  , incNumDiscarded
+  , incNumGenerated
+  , incNumInteresting
+  , incNumMutatedFromDiscarded
+  , incNumMutatedFromPassed
+  , incNumPassed
+  , incNumTestsSinceLastInteresting
+  , incNumTraceLogResets
+  , resetNumTestsSinceLastInteresting
+  , setAutoResetAfter
+  , setCurrentGenSize
+  , setDiscardedQueue
+  , setExpect
+  , setNextSeed
+  , setPassedQueue
+  , setRandomMutations
+  , timedOut
+  , updateFragmentStore
+  , updatePassedQueue
+  )
 import Test.Mutagen.Test.Terminal
+  ( MonadTerminal (..)
+  , pretty
+  , printBatchStatus
+  , printGlobalStats
+  , printShortStats
+  )
 import Test.Mutagen.Tracer.Store (STraceType (..), TraceStoreImpl (..))
 import Test.Mutagen.Tracer.Trace (Trace (..), truncateTrace, withTrace)
 import Test.QuickCheck.Gen (unGen)

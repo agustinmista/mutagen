@@ -9,7 +9,7 @@ module Test.Mutagen.Tracer.Store.API
 where
 
 import Test.Mutagen.Tracer.Store.Types (TraceType)
-import Test.Mutagen.Tracer.Trace
+import Test.Mutagen.Tracer.Trace (Trace)
 
 {-------------------------------------------------------------------------------
 -- * Generic trace store interface
