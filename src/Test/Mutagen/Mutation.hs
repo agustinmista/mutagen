@@ -51,27 +51,40 @@ type Mutation a = a -> [Mutant a]
 
 -- ** Mutable class
 
--- | Mutable types
+-- | Mutable types that can be mutated by into similar values with small changes
 class (Typeable a) => Mutable a where
   -- | List all the possible positions whithin a value that accept mutations
   positions :: a -> Tree Pos
   positions _ = node []
 
-  -- | Single value mutations
-  -- The default value of the type to be used when mutating
+  -- | Default value of this type to be used when "growing" a value
+  --
+  -- This is used when mutating from a "smaller" instance to a "larger" data
+  -- constructor; for example, when mutating from 'Nothing' to 'Just a'. In
+  -- those cases, 'def' is used to fill the missing gaps determinstically.
   def :: a
   def = error "def: not defined"
 
-  -- Top-level constructor mutations
+  -- | Top-level mutation acceptec by this value
+  --
+  -- NOTE: this should only return the mutations that change the value at the
+  -- top level; deeper mutations happening inside the value will be created on
+  -- demand by Mutagen via 'inside' during the testing loop.
   mutate :: Mutation a
   mutate = mempty
 
-  -- Apply a top-level mutation inside a value
+  -- | Apply a top-level mutation inside a value at the given position
+  --
+  -- Note that the input mutation uses a higher-rank type to ensure that the
+  -- mutation being applied is valid for the type at the given position, which
+  -- is not necessarily the same as the one at the top-level.
   inside :: Pos -> (forall x. (Mutable x) => Mutation x) -> Mutation a
   inside [] mut = mut
   inside pos _ = invalidPosition pos
 
 -- | A mutation that acts everywhere inside a mutable value
+--
+-- Useful moslty for testing purposes.
 mutateEverywhere :: (Mutable a) => Mutation a
 mutateEverywhere a = topLevel <> nested
   where

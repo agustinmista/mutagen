@@ -66,11 +66,11 @@ data TUI m = TUI
   -- ^ Pretty-print a value to the terminal
   }
 
--- | 'TerminalT' monad transformer
+-- | t'TerminalT' monad transformer
 newtype TerminalT m a = TerminalT {runTerminalT :: ReaderT (TUI m) m a}
   deriving (Applicative, Functor, Monad, MonadIO)
 
--- | Run a 'TerminalT' action with the given 'TUI'
+-- | Run a t'TerminalT' action with the given t'TUI'
 withTerminalT :: TUI m -> TerminalT m a -> m a
 withTerminalT tui = flip runReaderT tui . runTerminalT
 

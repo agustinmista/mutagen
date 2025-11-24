@@ -380,14 +380,14 @@ computeSize st
 -- | Compute the path for the next counterexample to be saved.
 --
 -- If no counterexamples are to be saved, returns 'Nothing'. If a path template
--- is provided (containing '@'), replaces '@' with the current failure counter.
--- Otherwise, appends the counter to the given path.
+-- is provided (containing @\@@), replaces @\@@ with the current failure
+-- counter. Otherwise, appends the counter to the given path.
 nextCounterexamplePath :: MutagenState -> Maybe FilePath
 nextCounterexamplePath st
   | Just path <- stSaveCounterexamples st =
       case elemIndex '@' path of
-        Just n -> Just (replace n (show (stNumFailed st + 1)) path)
-        Nothing -> Just (path <.> show (stNumFailed st + 1))
+        Just n -> Just (replace n (show (stNumFailed st)) path)
+        Nothing -> Just (path <.> show (stNumFailed st))
   | otherwise = Nothing
   where
     replace n s str =

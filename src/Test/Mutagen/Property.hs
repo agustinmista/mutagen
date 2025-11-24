@@ -14,7 +14,8 @@ module Test.Mutagen.Property
   , pattern Passed
   , pattern Failed
   , pattern Discarded
-  , Prop (..)
+  , Prop
+  , unProp
   , mapProp
   , protectProp
   , (==>)
@@ -53,7 +54,7 @@ type IsArgs a =
   , Lazy a
   )
 
--- Test arguments hidden behind an existential
+-- | Test arguments hidden behind an existential
 data Args = forall a. (IsArgs a) => Args a
 
 instance Show Args where
@@ -102,9 +103,16 @@ data Result = Result
 
 {-# COMPLETE Passed, Failed, Discarded :: Result #-}
 
-pattern Passed, Failed, Discarded :: Result
+-- | Pattern synonyms for a successful t'Result'
+pattern Passed :: Result
 pattern Passed <- Result{resultOk = Just True}
+
+-- | Pattern synonyms for a failed t'Result'
+pattern Failed :: Result
 pattern Failed <- Result{resultOk = Just False}
+
+-- | Pattern synonyms for a discarded t'Result'
+pattern Discarded :: Result
 pattern Discarded <- Result{resultOk = Nothing}
 
 -- ** Result constructors
@@ -136,7 +144,10 @@ exception e
 -------------------------------------------------------------------------------}
 
 -- | Executable properties as IO computations producing results
-newtype Prop = Prop {unProp :: IO Result}
+newtype Prop = Prop
+  { unProp :: IO Result
+  -- ^ Extract the IO computation from a Prop
+  }
 
 -- | Map a function over the result of a prop
 mapProp :: (Result -> Result) -> Prop -> Prop
@@ -190,7 +201,7 @@ instance (IsProp a) => IsProp (IO a) where
 -- | Properties encapsulating generators of arguments and runner functions
 data Property = Property (Gen Args) (Args -> Prop)
 
--- | Map a function over the inner executable 'Prop' of a property
+-- | Map a function over the inner executable t'Prop' of a property
 mapProperty :: (Prop -> Prop) -> Property -> Property
 mapProperty f (Property g p) = Property g (f . p)
 

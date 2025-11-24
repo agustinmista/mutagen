@@ -127,20 +127,20 @@ dTyVarBndrName = \case
 -- * DCon helpers
 -------------------------------------------------------------------------------}
 
--- | Get the name of a 'DCon'.
+-- | Get the name of a t'DCon'.
 dConName :: DCon -> Name
 dConName (DCon _ _ name _ _) = name
 
--- | Get the fields of a 'DCon'.
+-- | Get the fields of a t'DCon'.
 dConFields :: DCon -> DConFields
 dConFields (DCon _ _ _ conFields _) = conFields
 
--- | Get the types of the fields of a 'DCon'.
+-- | Get the types of the fields of a t'DCon'.
 dConFieldsTypes :: DConFields -> [DType]
 dConFieldsTypes (DNormalC _ bts) = snd <$> bts
 dConFieldsTypes (DRecC bts) = (\(_, _, t) -> t) <$> bts
 
--- | Get the number of fields of a 'DCon'.
+-- | Get the number of fields of a t'DCon'.
 dConFieldsNum :: DConFields -> Int
 dConFieldsNum (DNormalC _ bts) = length bts
 dConFieldsNum (DRecC bts) = length bts
@@ -173,7 +173,7 @@ mkApplicativeDExp headName =
     pureExp = DVarE 'pure `DAppE` DConE headName
     appExp l r = DVarE '(<*>) `DAppE` l `DAppE` r
 
--- | Build a list expression by chaining '(:)'.
+-- | Build a list expression by chaining 'Prelude.:'.
 mkListDExp :: [DExp] -> DExp
 mkListDExp =
   foldr consExp nilExp

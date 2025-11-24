@@ -7,7 +7,8 @@
 -- | Test case fragments and fragment stores
 module Test.Mutagen.Fragment
   ( -- * Fragments and Fragmentable class
-    Fragment (..)
+    IsFragment
+  , Fragment (..)
   , Fragmentable (..)
   , singleton
   )
@@ -45,7 +46,7 @@ instance Ord Fragment where
 instance Show Fragment where
   show (Fragment a) = "Fragment(" <> show a <> ")"
 
--- | Lift a item into a singleton fragment set
+-- | Turn an entire value into a singleton fragment set
 singleton :: (IsFragment a) => a -> Set Fragment
 singleton = Set.singleton . Fragment
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeApplications #-}
 
+-- | Main entry point for regex tests
 module Main where
 
 import RE.Match
@@ -45,7 +46,10 @@ config =
   defaultConfig
     { maxSuccess =
         -- Number of successful tests to find before stopping
-        10000
+        5000
+    , timeout =
+        -- Stop after this many seconds
+        Just 5
     , maxGenSize =
         -- Max generation size
         5
@@ -64,16 +68,19 @@ config =
         -- Only store fragments of the following types
         allow @ASCII
           <> allow @(RE ASCII)
-    , -- , keepGoing =
-      --     -- Keep going after finding the first counterexample
-      --     True
-      -- , saveCounterexamples =
-      --     -- Save found counterexamples to a file
-      --     Just "tmp/prop_optimize_@.txt"
+    , keepGoing =
+        -- Keep going after finding the first counterexample
+        False
+    , -- True
+      saveCounterexamples =
+        -- Save found counterexamples to a file
+        Nothing
+    , -- Just "tmp/prop_optimize_@.txt"
       chatty =
         -- Print extra info
         False
-    , debug =
+    , -- True
+      debug =
         -- Disable interactive debugging mode
         NoDebug
     , tui =

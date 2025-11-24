@@ -1,12 +1,14 @@
+{-# LANGUAGE BangPatterns #-}
+
 -- | Tracking lazy evaluation of expressions
 module Test.Mutagen.Lazy
   ( -- * Lazy evaluation tracking interface
     __evaluated__
-  , resetPosRef
-  , readPosRef
 
     -- * Lazy type class
   , Lazy (..)
+  , withLazy
+  , withLazyIO
   )
 where
 
@@ -52,10 +54,55 @@ readPosRef = reverse <$> readIORef posRef
 
 -- | Class for types that can track lazy evaluation of their subexpressions
 class Lazy a where
+  -- | Wrap an entire value (i.e., at every subexpression) with calls to
+  -- '__evaluated__' with their corresponding positions.
+  --
+  -- This is a convenience function defined as:
+  --
+  -- @
+  -- lazy x  = lazyNode [] x
+  -- @
+  --
+  -- And you usually want to define 'lazyNode' instead.
   lazy :: a -> a
   lazy = lazyNode []
 
+  -- | Wrap a value at a given position with calls to '__evaluated__'.
+  --
+  -- You can use 'withLazy' to test which subexpressions are evaluated by a
+  -- given function. For example:
+  --
+  -- >>> let a = Right (undefined, Just 42) :: Either Bool (String, Maybe Int)
+  -- >>> withLazy (\x -> case x of Right (_, Just _) -> True; _ -> False) a
+  -- ([[],[0],[0,1]],True)
+  --
+  -- Which indicates that the function evaluated:
+  --
+  -- * [] -> root node (Right)
+  -- * [0] -> Right's 0th child (the tuple)
+  -- * [0,1] -> the tuple's 1st child (Just)
+  --
+  -- While not evaluating neihter the @undefined@ nor the @42@.
   lazyNode :: Pos -> a -> a
+
+  {-# MINIMAL lazyNode #-}
+
+-- | Find which subexpressions of an input value does a function evaluate when
+-- forcing its result to weak head normal form.
+withLazy :: (Lazy a) => (a -> b) -> a -> IO ([Pos], b)
+withLazy f a = do
+  resetPosRef
+  let !b = f (lazy a)
+  ps <- readPosRef
+  return (ps, b)
+
+-- | Like 'withLazy', but for functions that already run on IO
+withLazyIO :: (Lazy a) => (a -> IO b) -> a -> IO ([Pos], b)
+withLazyIO f a = do
+  resetPosRef
+  !b <- f (lazy a)
+  ps <- readPosRef
+  return (ps, b)
 
 -- ** Lazy instances
 

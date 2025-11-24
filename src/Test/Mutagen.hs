@@ -1,3 +1,4 @@
+-- | Convenience module re-exporting all public test modules
 module Test.Mutagen
   ( module Test.Mutagen.Config
   , module Test.Mutagen.Test.Driver

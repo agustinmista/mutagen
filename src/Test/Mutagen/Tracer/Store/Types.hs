@@ -14,6 +14,10 @@ where
 -- * Tracing backends
 -------------------------------------------------------------------------------}
 
--- | Tracing backends
-data TraceBackend = Bitmap | Tree
+-- | Supported tracing backends
+data TraceBackend
+  = -- | Edge based tracing using a bitmap
+    Bitmap
+  | -- | Path based tracing using a rose tree
+    Tree
   deriving (Eq, Show)

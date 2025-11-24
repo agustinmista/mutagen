@@ -55,7 +55,7 @@ import System.IO.Unsafe (unsafePerformIO)
 
 -- | Folder where to put the generated metadata
 --
--- NOTE: can be overridden via the 'MUTAGEN_TRACER_METADATA_DIR' environment
+-- NOTE: can be overridden via the @MUTAGEN_TRACER_METADATA_DIR@ environment
 -- variable. Just remember to have it set up to the same value both at compile
 -- time and at runtime.
 tracerMetadataDir :: FilePath

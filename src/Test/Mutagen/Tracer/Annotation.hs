@@ -16,6 +16,7 @@ import Data.Data (Data)
 -- | Tell the tracer plugin to trace this function.
 --
 -- For example:
+--
 -- @
 --  {-# ANN myFunction TRACE #-}
 --  myFunction :: Int -> Int

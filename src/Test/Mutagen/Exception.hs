@@ -48,12 +48,14 @@ finally = Exception.finally
 -- to discard the current test case, but are somewhere you can't use
 -- 'Test.Mutagen.==>', such as inside a generator.
 discard :: a
+discard = error discardMsg
+
+-- | Predicate to check whether an exception is our special 'discard'
 isDiscard :: AnException -> Bool
-(discard, isDiscard) =
-  (error msg, isDiscard')
-  where
-    msg = "DISCARD. You should not see this exception, it is internal to Mutagen."
-    isDiscard' e =
-      case Exception.fromException e of
-        Just (Exception.ErrorCall msg') -> msg' == msg
-        _ -> False
+isDiscard e =
+  case Exception.fromException e of
+    Just (Exception.ErrorCall msg) -> msg == discardMsg
+    _ -> False
+
+discardMsg :: String
+discardMsg = "DISCARD. You should not see this exception, it is internal to Mutagen."

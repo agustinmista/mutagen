@@ -1,12 +1,16 @@
 -- | Abtract test case mutants and their concretization
 module Test.Mutagen.Mutant
-  ( -- * Abstract
+  ( -- * Abstract mutants
     Mutant (..)
   , MutantKind (..)
 
     -- * Concretized test cases
   , Concretized (..)
   , concretize
+
+    -- * Re-exports
+  , Gen
+  , FragmentStore
   )
 where
 
@@ -16,16 +20,16 @@ import Test.Mutagen.Fragment.Store (FragmentStore)
 import Test.QuickCheck (Gen, generate, resize)
 
 {-------------------------------------------------------------------------------
--- * Abstract test case mutants
+-- * Abstract mutants
 -------------------------------------------------------------------------------}
 
--- | Mutants
+-- | Mutants representing possibly unrealized mutations over values of type @a@.
 data Mutant a
-  = -- | A pure mutant obtained by applying a deterministic transformation
+  = -- | A pure mutation obtained after applying a deterministic transformation
     Pure a
-  | -- | A random mutant obtained by sampling from a generator
+  | -- | A random mutation obtained by sampling from a generator
     Rand (Gen a)
-  | -- | A fragment-based mutant obtained by sampling from a fragment store
+  | -- | A fragment-based mutation obtained by sampling from a fragment store
     Frag (FragmentStore -> Gen [a])
 
 instance Show (Mutant a) where
@@ -50,7 +54,7 @@ data MutantKind = PureMutant | RandMutant | FragMutant
 data Concretized a = Concretized MutantKind a
   deriving (Show)
 
--- | Concretize a mutant into concrete test cases
+-- | Turn an abstract mutant into a concrete set of values
 concretize
   :: (Typeable a)
   => (Int, Int)

@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
+-- | Regular expression types
 module RE.Types where
 
 import Data.String (IsString (..))

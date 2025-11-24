@@ -69,8 +69,10 @@ data Config
   -- ^ If `useLazyPrunning` is set to `False`, *every* subexpression of an
   -- interesting test case is mutated regardless whether it was evaluated or
   -- not. These subexpressions are ordered using a generic tree traversal order
-  -- (level order by default). Options are: `levelorder`, `preorder`, and
-  -- `postorder`.
+  -- (level order by default). The provided options are:
+  -- `Test.Mutagen.Mutation.levelorder`, `Test.Mutagen.Mutation.preorder`, and
+  -- `Test.Mutagen.Mutation.postorder`, but you're free to define your own
+  -- tree traversal order if needed.
   , useFragments :: Bool
   -- ^ Explode the interesting test cases found during the test loop into typed
   -- fragments. These fragments can be used to concretize fragment mutants.
@@ -90,21 +92,24 @@ data Config
   -- prefix-based traces (quite expensive but more precise). `Bitmap` uses
   -- edge-based traces (cheaper but less precise).
   , maxTraceLength :: Maybe Int
-  -- ^ The maximim trace length to consider. Useful in conjunction with the
-  -- `Tree` `traceMethod` when testing lengthy properties.
+  -- ^ The maximim trace length to consider. Nodes added beyond this limit will
+  -- be ignored. This is useful to limit memory consumption when using the
+  -- `Tree` 'TraceBackend' while testing lengthy properties.
   , keepGoing :: Bool
   -- ^ Whether to keep searching for more counterexamples after finding the
   -- first one. If set, Mutagen will stop only when reaching the maximum number
   -- of successful tests or the timeout, without giving up in the presence of
-  -- too many discards. Reports will always be a 'Success' or a timeout.
+  -- too many discards. Reports will always be a 'Test.Mutagen.Report.Success'.
+  --
+  -- NOTE: you probably want to set 'saveCounterexamples' when enabling this.
   , saveCounterexamples :: Maybe FilePath
-  -- ^ If set to a 'FilePath', save found counterexamples to the given file.
-  -- Accepts templated file paths, e.g., "counterexample_@.hs", where "@" will
-  -- be replaced by a counter. This is useful in combination with 'keepGoing'
-  -- to save multiple counterexamples.
+  -- ^ If set to a 'FilePath', save found counterexamples to the given path.
+  -- Accepts templated file paths via \@, e.g., "counterexample_\@.hs", where
+  -- \@ is be replaced by a counter. This is useful in combination with
+  -- 'keepGoing' to save multiple counterexamples over a long testing campaign.
   --
   -- NOTE: if 'keepGoing' is enabled and the counterexample path does not
-  -- contain "@", then the counter is appended to its end.
+  -- contain @, then the counter is appended at the end.
   , chatty :: Bool
   -- ^ Print extra info.
   , debug :: DebugMode
@@ -148,7 +153,7 @@ defaultConfig =
 allow :: forall a. (Typeable a) => FragmentTypeFilter
 allow = FragmentTypeFilter (Set.singleton (typeRep (Proxy @a))) mempty
 
--- | Like 'allow' but taking a 'Proxy' argument
+-- | Like 'allow' but taking a t'Proxy' argument
 allow' :: forall a. (Typeable a) => Proxy a -> FragmentTypeFilter
 allow' _ = allow @a
 
@@ -156,7 +161,7 @@ allow' _ = allow @a
 deny :: forall a. (Typeable a) => FragmentTypeFilter
 deny = FragmentTypeFilter mempty (Set.singleton (typeRep (Proxy @a)))
 
--- | Like 'deny' but taking a 'Proxy' argument
+-- | Like 'deny' but taking a t'Proxy' argument
 deny' :: forall a. (Typeable a) => Proxy a -> FragmentTypeFilter
 deny' _ = deny @a
 

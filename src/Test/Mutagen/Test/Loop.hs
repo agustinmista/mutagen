@@ -13,13 +13,12 @@ module Test.Mutagen.Test.Loop
 where
 
 import Control.Monad (void, when)
-import Control.Monad.Extra (ifM)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Function ((&))
 import System.Random (split)
 import Test.Mutagen.Config (DebugMode (..))
 import Test.Mutagen.Fragment.Store (storeFragments)
-import Test.Mutagen.Lazy (Lazy (..), readPosRef, resetPosRef)
+import Test.Mutagen.Lazy (withLazyIO)
 import Test.Mutagen.Mutation (Pos)
 import Test.Mutagen.Property
   ( Args
@@ -98,22 +97,25 @@ loop st
   -- We reached the max number of tests
   -- ==> either success or expected failure did not occur
   | stNumPassed st >= stMaxSuccess st =
-      if stExpect st
-        then success st
-        else noExpectedFailure st
-  -- We discarded too many tests
-  -- ==> give up
+      case (stExpect st, stKeepGoing st) of
+        (_, True) -> success st -- keepGoing always returns success
+        (True, _) -> success st -- property holds as expected
+        (False, _) -> noExpectedFailure st -- expected failure did not occur
+        -- We discarded too many tests
+        -- ==> give up
   | stNumDiscarded st
       >= stMaxDiscardRatio st * max (stNumPassed st) (stMaxSuccess st)
       && not (stKeepGoing st) =
       giveUp st "too many discarded tests"
-  -- The time bugdet is over, we check this every so often
-  -- ==> give up
-  | (stNumPassed st + stNumDiscarded st) `mod` 100 == 0 =
-      ifM
-        (liftIO (timedOut st))
-        (giveUp st "timeout")
-        (newTest st)
+  -- Time to check if the time budget has been exceeded
+  -- ==> if so, either success or give up depending on 'stKeepGoing'
+  -- ==> otherwise, continue testing
+  | (stNumPassed st + stNumDiscarded st + stNumFailed st) `mod` 100 == 0 = do
+      timeout <- liftIO (timedOut st)
+      case (timeout, stKeepGoing st) of
+        (True, True) -> success st
+        (True, False) -> giveUp st "timeout"
+        _ -> newTest st
   -- There has been a long time since we enqueued anything interesting and
   -- both mutation queues are empty
   -- ==> reset the trace logs to free memory
@@ -145,17 +147,23 @@ newTest st = do
   (args, parent, st') <- pickNextTestCase st
   -- run the test case
   (result, st'') <- runTestCase args parent st'
-  -- Print stats if necessary
-  if stChatty st'' then printGlobalStats st'' else printShortStats st''
-  -- Stop on debug mode if necessary
-  stopOnDebugMode (stDebug st'') result
   -- check the test result and report a counterexample or continue
   case result of
-    -- Test failed, report counterexample
-    Failed -> counterexample st'' args result
-    -- Test passed or discarded, continue the loop directly
-    _ -> loop st''
+    Failed -> onFailed st'' args result
+    _ -> onSuccessOrDiscarded st'' args result
   where
+    -- What to do with a successful or discarded test case
+    onSuccessOrDiscarded st' _args result = do
+      printStats st'
+      stopOnDebugMode (stDebug st') result
+      loop st'
+    -- What to do with a failed test case
+    onFailed st' args result = do
+      let st'' = st' & incNumFailed
+      reportCounterexample st'' args result
+      printStats st''
+      stopOnDebugMode (stDebug st'') result
+      stopOrKeepGoing st'' args
     -- Stop execution if in debug mode
     stopOnDebugMode debugMode res =
       case debugMode of
@@ -165,12 +173,34 @@ newTest st = do
     awaitForUserInput = do
       message "Press enter to continue ..."
       void (liftIO getLine)
+    -- Print global statistics depending on the verbosity
+    printStats st'
+      | stChatty st' = printGlobalStats st'
+      | otherwise = printShortStats st'
+    -- Stop or continue after a failed test case
+    stopOrKeepGoing st' args
+      -- Check if we should keep going
+      | stKeepGoing st' = do
+          message
+            $ "Failed "
+              <> show (stNumFailed st')
+              <> " times, keeping going..."
+          loop st'
+      -- Check if this was an expected failure and mask the report as success
+      | not (stExpect st') =
+          success st'
+      -- Otherwise, report the counterexample
+      | otherwise =
+          counterexample st' args
 
--- | Found a bug!
---
--- NOTE: if 'keepGoing' is disabled, this is also a terminal state.
-counterexample :: (MonadMutagen m) => MutagenState -> Args -> Result -> m Report
-counterexample st args result = do
+-- | Report a found counterexample
+reportCounterexample
+  :: (MonadMutagen m)
+  => MutagenState
+  -> Args
+  -> Result
+  -> m ()
+reportCounterexample st args result = do
   message "Found counterexample!"
   pretty args
   message "Reason of failure:"
@@ -187,25 +217,6 @@ counterexample st args result = do
       message $ "Saving counterexample to: " <> path
       liftIO $ writeFile path (show args)
     Nothing -> return ()
-  let st' = st & incNumFailed
-  next st'
-  where
-    next st'
-      -- Check if we should keep going
-      | stKeepGoing st' = do
-          message $ "Failed " <> show (stNumFailed st) <> " times, continuing..."
-          loop st'
-      -- Check if this was an expected failure and mask the report as success
-      | not (stExpect st') =
-          success st'
-      -- Otherwise, report the counterexample
-      | otherwise =
-          return
-            Counterexample
-              { numPassed = stNumPassed st'
-              , numDiscarded = stNumDiscarded st'
-              , failingArgs = args
-              }
 
 -- * Terminal states
 
@@ -218,6 +229,22 @@ success st = do
       { numPassed = stNumPassed st
       , numDiscarded = stNumDiscarded st
       , numFailed = stNumFailed st
+      }
+
+-- | Found a counterexample!
+counterexample :: (MonadMutagen m) => MutagenState -> Args -> m Report
+counterexample st args = do
+  message
+    $ "Property falsified after "
+      <> show (stNumPassed st)
+      <> " passed tests and "
+      <> show (stNumDiscarded st)
+      <> " discarded tests."
+  return
+    Counterexample
+      { numPassed = stNumPassed st
+      , numDiscarded = stNumDiscarded st
+      , failingArgs = args
       }
 
 -- | Too many discarded tests
@@ -497,13 +524,13 @@ runTestCase args parent st = do
 execPropRunner :: MutagenState -> Args -> IO (Result, Trace, Maybe [Pos])
 execPropRunner st args
   | stUseLazyPrunning st = do
-      resetPosRef
-      (test, trace) <- withTrace (unProp (protectProp (stPropRunner st (lazy args))))
-      evaluated <- readPosRef
+      (evaluated, (test, trace)) <- withLazyIO (withTrace . runProp) args
       return (test, trace, Just evaluated)
   | otherwise = do
-      (test, trace) <- withTrace (unProp (protectProp (stPropRunner st args)))
+      (test, trace) <- withTrace (runProp args)
       return (test, trace, Nothing)
+  where
+    runProp = unProp . protectProp . stPropRunner st
 
 -- | Save a discarded trace and return the number of new nodes added and its
 -- the priority associated to its corresponding test case.
