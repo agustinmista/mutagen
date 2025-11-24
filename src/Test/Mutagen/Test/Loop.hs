@@ -142,28 +142,29 @@ loop st
 
 -- | Select the next test case, run it, and process the result
 newTest :: (MonadMutagen m) => MutagenState -> m Report
-newTest st = do
-  -- pick a new test case
-  (args, parent, st') <- pickNextTestCase st
-  -- run the test case
-  (result, st'') <- runTestCase args parent st'
-  -- check the test result and report a counterexample or continue
+newTest st0 = do
+  -- NOTE: using 'stN' to avoid bugs related to tildes in the helpers below
+  -- 1. pick a new test case
+  (args, parent, st1) <- pickNextTestCase st0
+  -- 2. run the test case
+  (result, st2) <- runTestCase args parent st1
+  -- 3. check the test result and report a counterexample or continue
   case result of
-    Failed -> onFailed st'' args result
-    _ -> onSuccessOrDiscarded st'' args result
+    Failed -> onFailed st2 args result
+    _ -> onSuccessOrDiscarded st2 args result
   where
     -- What to do with a successful or discarded test case
-    onSuccessOrDiscarded st' _args result = do
+    onSuccessOrDiscarded st _args result = do
+      printStats st
+      stopOnDebugMode (stDebug st) result
+      loop st
+    -- What to do with a failed test case
+    onFailed st args result = do
+      let st' = st & incNumFailed
+      reportCounterexample st' args result
       printStats st'
       stopOnDebugMode (stDebug st') result
-      loop st'
-    -- What to do with a failed test case
-    onFailed st' args result = do
-      let st'' = st' & incNumFailed
-      reportCounterexample st'' args result
-      printStats st''
-      stopOnDebugMode (stDebug st'') result
-      stopOrKeepGoing st'' args
+      stopOrKeepGoing st' args
     -- Stop execution if in debug mode
     stopOnDebugMode debugMode res =
       case debugMode of
@@ -174,24 +175,24 @@ newTest st = do
       message "Press enter to continue ..."
       void (liftIO getLine)
     -- Print global statistics depending on the verbosity
-    printStats st'
-      | stChatty st' = printGlobalStats st'
-      | otherwise = printShortStats st'
+    printStats st
+      | stChatty st = printGlobalStats st
+      | otherwise = printShortStats st
     -- Stop or continue after a failed test case
-    stopOrKeepGoing st' args
+    stopOrKeepGoing st args
       -- Check if we should keep going
-      | stKeepGoing st' = do
+      | stKeepGoing st = do
           message
             $ "Failed "
-              <> show (stNumFailed st')
+              <> show (stNumFailed st)
               <> " times, keeping going..."
-          loop st'
+          loop st
       -- Check if this was an expected failure and mask the report as success
-      | not (stExpect st') =
-          success st'
+      | not (stExpect st) =
+          success st
       -- Otherwise, report the counterexample
       | otherwise =
-          counterexample st' args
+          counterexample st args
 
 -- | Report a found counterexample
 reportCounterexample
