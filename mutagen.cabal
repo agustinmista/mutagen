@@ -45,6 +45,7 @@ library
     Test.Mutagen.Tracer
     Test.Mutagen.Tracer.Plugin
   other-modules:
+    Test.Mutagen.Fragment.Store
     Test.Mutagen.TH.Arbitrary
     Test.Mutagen.TH.Fragmentable
     Test.Mutagen.TH.Lazy

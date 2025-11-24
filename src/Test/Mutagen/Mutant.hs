@@ -12,7 +12,7 @@ where
 
 import Control.Monad (replicateM)
 import Data.Typeable (Typeable)
-import Test.Mutagen.Fragment (FragmentStore)
+import Test.Mutagen.Fragment.Store (FragmentStore)
 import Test.QuickCheck (Gen, generate, resize)
 
 {-------------------------------------------------------------------------------

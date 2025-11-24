@@ -25,7 +25,7 @@ where
 
 import qualified Data.Set as Set
 import Data.Typeable (Proxy (..), Typeable, typeRep)
-import Test.Mutagen.Fragment (FragmentTypeFilter (..))
+import Test.Mutagen.Fragment.Store (FragmentTypeFilter (..))
 import Test.Mutagen.Mutation (MutationOrder, levelorder)
 import Test.Mutagen.Property (Args (..), IsArgs)
 import Test.Mutagen.Tracer.Store (TraceBackend (..))

@@ -33,7 +33,7 @@ import qualified Data.Map as Map
 import Data.Tree (Tree (..), levels)
 import Data.Typeable (Typeable)
 import Data.Word (Word16, Word32, Word64, Word8)
-import Test.Mutagen.Fragment (sampleFragments)
+import Test.Mutagen.Fragment.Store (sampleFragments)
 import Test.Mutagen.Mutant (Mutant (..))
 import Test.QuickCheck (Arbitrary (..), arbitrary)
 

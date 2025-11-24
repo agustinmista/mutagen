@@ -18,7 +18,7 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Data.Function ((&))
 import System.Random (split)
 import Test.Mutagen.Config (DebugMode (..))
-import Test.Mutagen.Fragment (storeFragments)
+import Test.Mutagen.Fragment.Store (storeFragments)
 import Test.Mutagen.Lazy (Lazy (..), readPosRef, resetPosRef)
 import Test.Mutagen.Mutation (Pos)
 import Test.Mutagen.Property

@@ -25,7 +25,7 @@ import Control.Monad.Extra (concatMapM)
 import Data.Maybe (fromMaybe)
 import Data.PQueue.Prio.Min (MinPQueue)
 import qualified Data.PQueue.Prio.Min as PQueue
-import Test.Mutagen.Fragment (FragmentStore)
+import Test.Mutagen.Fragment.Store (FragmentStore)
 import Test.Mutagen.Mutant (Concretized (..), MutantKind, concretize)
 import Test.Mutagen.Mutation (Mutable (..), MutationOrder, Pos)
 import Test.Mutagen.Property (Args)

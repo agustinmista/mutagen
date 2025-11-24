@@ -26,7 +26,7 @@ import Language.Haskell.TH.Desugar
   , dPatToDExp
   , mkTupleDExp
   )
-import Test.Mutagen.Fragment
+import Test.Mutagen.Fragment.Store
   ( sampleFragments
   )
 import Test.Mutagen.Mutant

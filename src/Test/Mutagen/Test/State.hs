@@ -45,7 +45,7 @@ import Data.List (elemIndex)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import System.FilePath ((<.>))
 import Test.Mutagen.Config (Config (..), DebugMode (..))
-import Test.Mutagen.Fragment
+import Test.Mutagen.Fragment.Store
   ( FragmentStore
   , FragmentTypeFilter
   , emptyFragmentStore

@@ -43,7 +43,7 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.Vector as Vector
 import Graphics.Vty (Event (..), Key (..), Modifier (..))
 import qualified Graphics.Vty as Vty
-import Test.Mutagen.Fragment (fragmentStoreSize)
+import Test.Mutagen.Fragment.Store (fragmentStoreSize)
 import Test.Mutagen.Property (Args)
 import Test.Mutagen.Test.Queue (MutationBatch (..), mutationQueueSize)
 import Test.Mutagen.Test.State (MutagenState (..))
