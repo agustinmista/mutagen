@@ -3,7 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
 
--- | Template Haskell utilities
+-- | Template Haskell utilities.
 module Test.Mutagen.TH.Util
   ( -- * Reification helpers
     reifyName
@@ -78,14 +78,14 @@ import System.Console.ANSI
 -- * Reification helpers
 -------------------------------------------------------------------------------}
 
--- | Reify a name or die gracefully
+-- | Reify a name or die gracefully.
 reifyName :: Name -> Q DInfo
 reifyName name = do
   dsReify name >>= \case
     Just info -> return info
     Nothing -> mutagenError "could not reify name" [name]
 
--- | Reify a type definition or die gracefully
+-- | Reify a type definition or die gracefully.
 reifyTypeDef :: Name -> Q ([DTyVarBndrVis], [DCon])
 reifyTypeDef name = do
   reifyName name >>= \case
@@ -96,7 +96,7 @@ reifyTypeDef name = do
 -- * DType helpers
 -------------------------------------------------------------------------------}
 
--- | Compare DTypes for equality
+-- | Compare DTypes for equality.
 (.==.) :: DType -> DType -> Bool
 (.==.) = (==) `on` simplifyDType
   where

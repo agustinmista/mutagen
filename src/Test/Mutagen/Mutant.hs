@@ -1,4 +1,4 @@
--- | Abtract test case mutants and their concretization
+-- | Abstract test case mutants and their concretization.
 module Test.Mutagen.Mutant
   ( -- * Abstract mutants
     Mutant (..)
@@ -46,15 +46,15 @@ instance Functor Mutant where
 -- * Concretized test cases
 -------------------------------------------------------------------------------}
 
--- | Kinds of concretized mutants
+-- | Kinds of concretized mutants.
 data MutantKind = PureMutant | RandMutant | FragMutant
   deriving (Show)
 
--- | Values obtained by concretizing a mutant
+-- | Values obtained by concretizing a mutant.
 data Concretized a = Concretized MutantKind a
   deriving (Show)
 
--- | Turn an abstract mutant into a concrete set of values
+-- | Turn an abstract mutant into a concrete set of values.
 concretize
   :: (Typeable a)
   => (Int, Int)

@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskellQuotes #-}
 
--- | Derive 'Mutable' instances for a given data type
+-- | Derive 'Mutable' instances for a given data type.
 module Test.Mutagen.TH.Mutable
   ( deriveMutable
   )

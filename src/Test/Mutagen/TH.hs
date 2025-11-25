@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskellQuotes #-}
 
--- | Entry point for Template Haskell based derivations of Mutagen type classes
+-- | Entry point for Template Haskell based derivations of Mutagen type classes.
 --
 -- Currently, this supports deriving instances for the 'Arbitrary', 'Mutable',
 -- 'Lazy', and 'Fragmentable' type classes.
@@ -15,7 +15,7 @@
 --    -- Derive all supported instances
 --    TH.deriveAll ''MyType
 --
---    -- Or, alternative, derive individual instances
+--    -- Or, alternatively, derive individual instances
 --    TH.deriveInstance ''MyType ''Arbitrary
 --    TH.deriveInstance ''MyType ''Fragmentable
 --

@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Internal Mutagen testing state and state manipulation functions
+-- | Internal Mutagen testing state and state manipulation functions.
 module Test.Mutagen.Test.State
   ( -- * Mutagen internal state
     MutagenState (..)
@@ -68,7 +68,7 @@ import Test.QuickCheck.Random (QCGen, newQCGen)
 -- * Mutagen internal state
 -------------------------------------------------------------------------------}
 
--- | Internal testing state
+-- | Internal testing state.
 data MutagenState
   = forall trace.
   (TraceStoreImpl trace) =>
@@ -163,7 +163,7 @@ data MutagenState
   -- ^ Number of times the trace store have been reset
   }
 
--- | Initialize the internal state
+-- | Initialize the internal state.
 initMutagenState :: Config -> Property -> IO MutagenState
 initMutagenState cfg (Property gen runner) = do
   -- Start timestamp
@@ -346,7 +346,7 @@ resetNumTestsSinceLastInteresting st =
 -- * State-related utilities
 -------------------------------------------------------------------------------}
 
--- Check whether the timeout has passed
+-- | Check whether the timeout has passed.
 timedOut :: MutagenState -> IO Bool
 timedOut st
   | Just s <- stTimeout st = do
@@ -354,9 +354,9 @@ timedOut st
       return (now >= stStartTime st + (fromIntegral s))
   | otherwise = return False
 
--- Compute the size of the next randomly generated value
+-- | Compute the size of the next randomly generated value.
 --
--- NOTE : This function mimics QuickCheck's size computation strategy
+-- NOTE: This function mimics QuickCheck's size computation strategy.
 computeSize :: MutagenState -> Int
 computeSize st
   | stNumPassed st `roundTo` stMaxGenSize st + stMaxGenSize st <= stMaxSuccess st

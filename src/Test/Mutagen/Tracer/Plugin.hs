@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE PatternSynonyms #-}
 
--- | GHC source plugin that instruments Haskell code to include tracing calls
+-- | GHC source plugin that instruments Haskell code to include tracing calls.
 --
 -- You can enable this plugin in different ways:
 --
@@ -70,7 +70,7 @@ import Test.Mutagen.Tracer.Trace (TraceNode)
 -- * GHC Plugin
 -------------------------------------------------------------------------------}
 
--- | Top-level plugin
+-- | Top-level plugin.
 plugin :: Plugin
 plugin = defaultPlugin{parsedResultAction = action}
   where
@@ -90,7 +90,7 @@ plugin = defaultPlugin{parsedResultAction = action}
 -- * Instrumentation
 -------------------------------------------------------------------------------}
 
--- | Instrument a parsed module
+-- | Instrument a parsed module.
 instrumentModule
   :: [CommandLineOption]
   -> DynFlags
@@ -217,12 +217,12 @@ instrumentModule _cli flags modAST = do
 
 -- ** Trace node generation
 
--- | Global counter for trace nodes
+-- | Global counter for trace nodes.
 traceNodeCounter :: IORef TraceNode
 traceNodeCounter = unsafePerformIO (newIORef 0)
 {-# NOINLINE traceNodeCounter #-}
 
--- | Generate a fresh trace node
+-- | Generate a fresh trace node.
 freshTraceNode :: IO TraceNode
 freshTraceNode = atomicModifyIORef' traceNodeCounter $ \n ->
   (n + 1, n + 1)
@@ -231,7 +231,7 @@ freshTraceNode = atomicModifyIORef' traceNodeCounter $ \n ->
 -- ** Logging
 
 {- FOURMOLU_DISABLE -}
--- | Print a message if debugging is enabled
+-- | Print a message if debugging is enabled.
 mutagenLog :: MonadIO m => String -> m ()
 mutagenLog _str =
 #ifdef MUTAGEN_PLUGIN_DEBUG
@@ -243,7 +243,7 @@ mutagenLog _str =
 
 -- ** Annotation pragmas
 
--- | Pattern for matching against annotation pragmas
+-- | Pattern for matching against annotation pragmas.
 pattern HsAnn :: RdrName -> RdrName -> AnnDecl GhcPs
 pattern HsAnn lhs rhs <-
   HsAnnotation
@@ -257,14 +257,14 @@ isAnn :: DynFlags -> AnnDecl GhcPs -> Bool
 isAnn flags (HsAnn _ rhs) = showPpr flags rhs == showPpr flags tracerAnnName
 isAnn _ _ = False
 
--- | Extract the target of an annotation pragma
+-- | Extract the target of an annotation pragma.
 extractAnn :: AnnDecl GhcPs -> RdrName
 extractAnn (HsAnn target _) = target
 extractAnn _ = error "this should not happen"
 
 -- ** Source locations
 
--- | Turn a generic 'SrcSpan' into something more amenable to serialization
+-- | Turn a generic 'SrcSpan' into something more amenable to serialization.
 srcSpanToNodeLocation :: SrcSpan -> Maybe NodeLocation
 srcSpanToNodeLocation loc =
   case loc of
@@ -281,40 +281,40 @@ srcSpanToNodeLocation loc =
 
 -- ** Predicates
 
--- | Is this a patter matching an argument of a function binding?
+-- | Is this a pattern matching an argument of a function binding?
 isFunRhs :: HsMatchContext id -> Bool
 isFunRhs (FunRhs{}) = True
 isFunRhs _ = False
 
 -- ** Constants
 
--- | Module name of the tracing module
+-- | Module name of the tracing module.
 tracerModuleName :: ModuleName
 tracerModuleName = mkModuleName "Test.Mutagen.Tracer"
 
--- | Name of the tracing function
+-- | Name of the tracing function.
 tracerFunName :: RdrName
 tracerFunName = mkRdrName "__trace__"
 
--- | Name of the tracing annotation
+-- | Name of the tracing annotation.
 tracerAnnName :: RdrName
 tracerAnnName = mkRdrName "TRACE"
 
 -- ** AST Builders
 
--- | Make an unqualified 'RdrName' from a string
+-- | Make an unqualified 'RdrName' from a string.
 mkRdrName :: String -> RdrName
 mkRdrName str = mkUnqual Name.varName (mkFastString str)
 
--- | Build a variable expression from a 'RdrName'
+-- | Build a variable expression from a 'RdrName'.
 var :: RdrName -> LHsExpr GhcPs
 var v = noLocA (HsVar noExtField (noLocA v))
 
--- | Wrap an expression in parentheses
+-- | Wrap an expression in parentheses.
 paren :: LHsExpr GhcPs -> LHsExpr GhcPs
 paren x = noLocA (gHsPar x)
 
--- | Apply one expression to another
+-- | Apply one expression to another.
 app :: LHsExpr GhcPs -> LHsExpr GhcPs -> LHsExpr GhcPs
 #if MIN_VERSION_ghc(9,10,1)
 app x y = noLocA (HsApp GHC.noExtField x y)
@@ -324,7 +324,7 @@ app x y = noLocA (HsApp GHC.noComments x y)
 
 infixl 5 `app`
 
--- | Build a numeric literal expression
+-- | Build a numeric literal expression.
 numLit :: Int -> LHsExpr GhcPs
 #if MIN_VERSION_ghc(9,10,1)
 numLit n = noLocA (HsLit GHC.noExtField (HsInt noExtField (mkIntegralLit n)))
@@ -332,7 +332,7 @@ numLit n = noLocA (HsLit GHC.noExtField (HsInt noExtField (mkIntegralLit n)))
 numLit n = noLocA (HsLit GHC.noComments (HsInt noExtField (mkIntegralLit n)))
 #endif
 
--- | Wrap an expression with the tracer function
+-- | Wrap an expression with the tracer function.
 wrapTracer :: TraceNode -> LHsExpr GhcPs -> LHsExpr GhcPs
 wrapTracer node expr =
   var tracerFunName

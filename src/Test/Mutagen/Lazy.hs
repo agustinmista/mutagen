@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 
--- | Tracking lazy evaluation of expressions
+-- | Tracking lazy evaluation of expressions.
 module Test.Mutagen.Lazy
   ( -- * Lazy evaluation tracking interface
     __evaluated__
@@ -23,7 +23,7 @@ import Test.Mutagen.Mutation (Pos)
 -- * Lazy evaluation tracking interface
 -------------------------------------------------------------------------------}
 
--- | Injectable function to mark the evaluation an expression at some possition
+-- | Injectable function to mark the evaluation an expression at some position.
 __evaluated__ :: Pos -> a -> a
 __evaluated__ pos expr =
   unsafePerformIO $ do
@@ -31,20 +31,20 @@ __evaluated__ pos expr =
     return expr
 {-# INLINE __evaluated__ #-}
 
--- | Global IORef to store evaluated positions
+-- | Global IORef to store evaluated positions.
 posRef :: IORef [Pos]
 posRef = unsafePerformIO (newIORef [])
 {-# NOINLINE posRef #-}
 
--- | Add evaluated position to the global IORef
+-- | Add evaluated position to the global IORef.
 addEvaluatedPos :: Pos -> IO ()
 addEvaluatedPos pos = modifyIORef' posRef (reverse pos :)
 
--- | Reset the global IORef of evaluated positions
+-- | Reset the global IORef of evaluated positions.
 resetPosRef :: IO ()
 resetPosRef = modifyIORef' posRef (const [])
 
--- | Read the global IORef of evaluated positions
+-- | Read the global IORef of evaluated positions.
 readPosRef :: IO [Pos]
 readPosRef = reverse <$> readIORef posRef
 
@@ -52,7 +52,7 @@ readPosRef = reverse <$> readIORef posRef
 -- * Lazy type class
 -------------------------------------------------------------------------------}
 
--- | Class for types that can track lazy evaluation of their subexpressions
+-- | Class for types that can track lazy evaluation of their subexpressions.
 class Lazy a where
   -- | Wrap an entire value (i.e., at every subexpression) with calls to
   -- '__evaluated__' with their corresponding positions.
@@ -96,7 +96,7 @@ withLazy f a = do
   ps <- readPosRef
   return (ps, b)
 
--- | Like 'withLazy', but for functions that already run on IO
+-- | Like 'withLazy', but for functions that already run on IO.
 withLazyIO :: (Lazy a) => (a -> IO b) -> a -> IO ([Pos], b)
 withLazyIO f a = do
   resetPosRef

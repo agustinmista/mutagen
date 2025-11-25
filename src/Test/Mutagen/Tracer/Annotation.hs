@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
--- | Annotations used to instruct the Mutagen tracer plugin what to instrument
+-- | Annotations used to instruct the Mutagen tracer plugin what to instrument.
 module Test.Mutagen.Tracer.Annotation
   ( -- * Annotations
     TRACE (..)

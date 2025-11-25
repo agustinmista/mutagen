@@ -1,4 +1,4 @@
--- | Testing reports
+-- | Testing reports.
 module Test.Mutagen.Report
   ( -- * Testing reports
     Report (..)
@@ -12,9 +12,9 @@ import Test.Mutagen.Property (Args)
 -- * Testing reports
 -------------------------------------------------------------------------------}
 
--- | Testing report
+-- | Testing report.
 data Report
-  = -- | The property passed all tests
+  = -- | The property passed all tests.
     Success
       { numPassed :: Int
       -- ^ Number of passed tests
@@ -23,7 +23,7 @@ data Report
       , numFailed :: Int
       -- ^ Number of failed tests
       }
-  | -- | The property failed for the given arguments
+  | -- | The property failed for the given arguments.
     Counterexample
       { numPassed :: Int
       -- ^ Number of passed tests
@@ -32,7 +32,7 @@ data Report
       , failingArgs :: Args
       -- ^ Failing arguments
       }
-  | -- | The testing loop gave up before completing all tests
+  | -- | The testing loop gave up before completing all tests.
     GaveUp
       { numPassed :: Int
       -- ^ Number of passed tests
@@ -41,7 +41,7 @@ data Report
       , reason :: String
       -- ^ Reason for giving up
       }
-  | -- | The property was expected to fail, but all tests passed
+  | -- | The property was expected to fail, but all tests passed.
     NoExpectedFailure
       { numPassed :: Int
       -- ^ Number of passed tests
@@ -50,7 +50,7 @@ data Report
       }
   deriving (Show)
 
--- | Check if a report indicates a successful test run
+-- | Check if a report indicates a successful test run.
 isSuccess :: Report -> Bool
 isSuccess (Success{}) = True
 isSuccess _ = False

@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
 
--- | Mutations as transformations of values into mutants
+-- | Mutations as transformations of values into mutants.
 module Test.Mutagen.Mutation
   ( -- * Mutable types
     Pos
@@ -43,29 +43,29 @@ import Test.QuickCheck (Arbitrary (..), arbitrary)
 
 -- ** Types
 
--- | Breadcrumbs used to place mutations inside of values
+-- | Breadcrumbs used to place mutations inside of values.
 type Pos = [Int]
 
--- | Mutations as transformations of values into mutants
+-- | Mutations as transformations of values into mutants.
 type Mutation a = a -> [Mutant a]
 
 -- ** Mutable class
 
--- | Mutable types that can be mutated by into similar values with small changes
+-- | Mutable types that can be mutated by into similar values with small changes.
 class (Typeable a) => Mutable a where
-  -- | List all the possible positions whithin a value that accept mutations
+  -- | List all the possible positions within a value that accept mutations.
   positions :: a -> Tree Pos
   positions _ = node []
 
-  -- | Default value of this type to be used when "growing" a value
+  -- | Default value of this type to be used when "growing" a value.
   --
   -- This is used when mutating from a "smaller" instance to a "larger" data
   -- constructor; for example, when mutating from 'Nothing' to 'Just a'. In
-  -- those cases, 'def' is used to fill the missing gaps determinstically.
+  -- those cases, 'def' is used to fill the missing gaps deterministically.
   def :: a
   def = error "def: not defined"
 
-  -- | Top-level mutation acceptec by this value
+  -- | Top-level mutation accepted by this value.
   --
   -- NOTE: this should only return the mutations that change the value at the
   -- top level; deeper mutations happening inside the value will be created on
@@ -73,7 +73,7 @@ class (Typeable a) => Mutable a where
   mutate :: Mutation a
   mutate = mempty
 
-  -- | Apply a top-level mutation inside a value at the given position
+  -- | Apply a top-level mutation inside a value at the given position.
   --
   -- Note that the input mutation uses a higher-rank type to ensure that the
   -- mutation being applied is valid for the type at the given position, which
@@ -82,9 +82,9 @@ class (Typeable a) => Mutable a where
   inside [] mut = mut
   inside pos _ = invalidPosition pos
 
--- | A mutation that acts everywhere inside a mutable value
+-- | A mutation that acts everywhere inside a mutable value.
 --
--- Useful moslty for testing purposes.
+-- Useful mostly for testing purposes.
 mutateEverywhere :: (Mutable a) => Mutation a
 mutateEverywhere a = topLevel <> nested
   where
@@ -93,11 +93,11 @@ mutateEverywhere a = topLevel <> nested
 
 -- ** Helpers for defining instances
 
--- | Wrap mutants with a constructor
+-- | Wrap mutants with a constructor.
 wrap :: [Mutant a] -> (a -> b) -> [Mutant b]
 wrap mutants wrapper = fmap (fmap wrapper) mutants
 
--- | Construct a position tree node from its indexed children
+-- | Construct a position tree node from its indexed children.
 node :: [(Int, Tree Pos)] -> Tree Pos
 node xs = Node [] (fmap (\(idx, children) -> fmap (idx :) children) xs)
 
@@ -106,7 +106,7 @@ invalidPosition :: Pos -> a
 invalidPosition pos =
   error ("inside: invalid position: " <> show pos)
 
--- | Report an invalid position error, showing also the value being mutated
+-- | Report an invalid position error, showing also the value being mutated.
 invalidPositionShow :: (Show a) => Pos -> a -> b
 invalidPositionShow pos a =
   error ("inside: invalid position: " <> show pos <> "\nvalue: " <> show a)
@@ -117,8 +117,8 @@ invalidPositionShow pos a =
 
 -- | A mutable wrapper that produces no mutations.
 --
--- This useful for constraning certain parts of a data structure to be
--- immutable while still fullfilling the 'Mutable' interface.
+-- This useful for constraining certain parts of a data structure to be
+-- immutable while still fulfilling the 'Mutable' interface.
 newtype Immutable a = Immutable {unImmutabe :: a}
   deriving (Eq, Ord, Read, Show)
 
@@ -131,22 +131,22 @@ instance (Arbitrary a, Typeable a) => Mutable (Immutable a)
 -- * Mutation order
 -------------------------------------------------------------------------------}
 
--- | Order in which to traverse the mutation positions of a value
+-- | Order in which to traverse the mutation positions of a value.
 type MutationOrder = forall a. Tree a -> [a]
 
--- | Pre-order traversal
+-- | Pre-order traversal.
 preorder :: MutationOrder
 preorder t = squish t []
   where
     squish (Node x ts) xs = x : List.foldr squish xs ts
 
--- | Post-order traversal
+-- | Post-order traversal.
 postorder :: MutationOrder
 postorder = squish []
   where
     squish xs (Node x ts) = x : List.foldl' squish xs ts
 
--- | Level-order traversal
+-- | Level-order traversal.
 levelorder :: MutationOrder
 levelorder = concat . levels
 

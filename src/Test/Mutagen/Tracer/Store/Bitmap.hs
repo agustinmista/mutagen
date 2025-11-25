@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
--- | Edge-based bitmap trace store
+-- | Edge-based bitmap trace store.
 module Test.Mutagen.Tracer.Store.Bitmap
   ( -- * Bitmap trace store
     TraceStore

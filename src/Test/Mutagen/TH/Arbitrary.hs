@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- | Derive an 'Arbitrary' instance for a given data type
+-- | Derive an 'Arbitrary' instance for a given data type.
 module Test.Mutagen.TH.Arbitrary
   ( deriveArbitrary
   )
@@ -112,7 +112,7 @@ mkConGen targetType gen_ size_ (DCon _ _ cname cfields _) = do
       (dConFieldsTypes cfields)
   return (mkApplicativeDExp cname fieldGens)
 
--- | Create the appropriate generator for a constructor field based
+-- | Create the appropriate generator for a constructor field based.
 mkConFieldGen :: DType -> Name -> Name -> DType -> Q DExp
 mkConFieldGen targetType gen_ size_ fieldTy =
   dsExp =<< mkGen fieldTy

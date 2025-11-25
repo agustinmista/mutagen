@@ -1,4 +1,4 @@
--- | Exception handling utilities
+-- | Exception handling utilities.
 module Test.Mutagen.Exception
   ( -- * Exception handling utilities
     AnException
@@ -17,14 +17,14 @@ import qualified Control.Exception as Exception
 -- * Exception handling utilities
 -------------------------------------------------------------------------------}
 
--- | A general exception type
+-- | A general exception type.
 type AnException = Exception.SomeException
 
--- | Evaluate a value to weak head normal form, catching any exceptions
+-- | Evaluate a value to weak head normal form, catching any exceptions.
 tryEvaluate :: a -> IO (Either AnException a)
 tryEvaluate x = tryEvaluateIO (return x)
 
--- | Evaluate an IO action to weak head normal form, catching any exceptions
+-- | Evaluate an IO action to weak head normal form, catching any exceptions.
 tryEvaluateIO :: IO a -> IO (Either AnException a)
 tryEvaluateIO m =
   Exception.tryJust notAsync (m >>= Exception.evaluate)
@@ -34,12 +34,12 @@ tryEvaluateIO m =
       Just (Exception.SomeAsyncException _) -> Nothing
       Nothing -> Just e
 
--- | Evaluate a value to weak head normal form
+-- | Evaluate a value to weak head normal form.
 evaluate :: a -> IO a
 evaluate = Exception.evaluate
 
 -- | Ensure that a cleanup action is run after an IO action, even if
--- an exception is thrown
+-- an exception is thrown.
 finally :: IO a -> IO b -> IO a
 finally = Exception.finally
 
@@ -50,7 +50,7 @@ finally = Exception.finally
 discard :: a
 discard = error discardMsg
 
--- | Predicate to check whether an exception is our special 'discard'
+-- | Predicate to check whether an exception is our special 'discard'.
 isDiscard :: AnException -> Bool
 isDiscard e =
   case Exception.fromException e of

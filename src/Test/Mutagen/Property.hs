@@ -5,7 +5,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 
--- | Combinators for constructing and running properties
+-- | Combinators for constructing and running properties.
 module Test.Mutagen.Property
   ( -- * Property arguments
     IsArgs
@@ -42,7 +42,7 @@ import Unsafe.Coerce (unsafeCoerce)
 -- * Property arguments
 -------------------------------------------------------------------------------}
 
--- | Constraints needed for types that can be used as property arguments
+-- | Constraints needed for types that can be used as property arguments.
 type IsArgs a =
   ( Show a
   , Eq a
@@ -54,7 +54,7 @@ type IsArgs a =
   , Lazy a
   )
 
--- | Test arguments hidden behind an existential
+-- | Test arguments hidden behind an existential.
 data Args = forall a. (IsArgs a) => Args a
 
 instance Show Args where
@@ -88,7 +88,7 @@ instance Fragmentable Args where
 -- * Property results
 -------------------------------------------------------------------------------}
 
--- | Result of executing a property
+-- | Result of executing a property.
 data Result = Result
   { resultOk :: Maybe Bool
   -- ^ 'Just True' for passed, 'Just False' for failed, 'Nothing' for discarded
@@ -103,15 +103,15 @@ data Result = Result
 
 {-# COMPLETE Passed, Failed, Discarded :: Result #-}
 
--- | Pattern synonyms for a successful t'Result'
+-- | Pattern synonyms for a successful t'Result'.
 pattern Passed :: Result
 pattern Passed <- Result{resultOk = Just True}
 
--- | Pattern synonyms for a failed t'Result'
+-- | Pattern synonyms for a failed t'Result'.
 pattern Failed :: Result
 pattern Failed <- Result{resultOk = Just False}
 
--- | Pattern synonyms for a discarded t'Result'
+-- | Pattern synonyms for a discarded t'Result'.
 pattern Discarded :: Result
 pattern Discarded <- Result{resultOk = Nothing}
 
@@ -143,17 +143,17 @@ exception e
 -- * Executable properties
 -------------------------------------------------------------------------------}
 
--- | Executable properties as IO computations producing results
+-- | Executable properties as IO computations producing results.
 newtype Prop = Prop
   { unProp :: IO Result
-  -- ^ Extract the IO computation from a Prop
+  -- ^ Extract the IO computation from a Prop.
   }
 
--- | Map a function over the result of a prop
+-- | Map a function over the result of a prop.
 mapProp :: (Result -> Result) -> Prop -> Prop
 mapProp f = Prop . fmap f . unProp
 
--- | Protect a prop against exceptions during evaluation
+-- | Protect a prop against exceptions during evaluation.
 protectProp :: Prop -> Prop
 protectProp (Prop io) = Prop $ do
   let force t = resultOk t == Just False `seq` t
@@ -162,21 +162,21 @@ protectProp (Prop io) = Prop $ do
     Left e -> return (exception e)
     Right r -> return r
 
--- | Implication combinator for properties
+-- | Implication combinator for properties.
 (==>) :: (IsProp a) => Bool -> a -> Prop
 (==>) True post = prop post
 (==>) False _ = prop discarded
 
 infixr 2 ==>
 
--- | Discard a property if it takes more than some milliseconds
+-- | Discard a property if it takes more than some milliseconds.
 discardAfter :: (IsProp a) => Int -> a -> Prop
 discardAfter millis a = Prop $ do
   let iot = unProp (prop a)
   mbt <- timeout (millis * 1000) iot
   maybe discard return mbt
 
--- | Types that can produce props
+-- | Types that can produce props.
 class IsProp a where
   prop :: a -> Prop
 
@@ -198,20 +198,20 @@ instance (IsProp a) => IsProp (IO a) where
 -- * Testable properties
 -------------------------------------------------------------------------------}
 
--- | Properties encapsulating generators of arguments and runner functions
+-- | Properties encapsulating generators of arguments and runner functions.
 data Property = Property (Gen Args) (Args -> Prop)
 
--- | Map a function over the inner executable t'Prop' of a property
+-- | Map a function over the inner executable t'Prop' of a property.
 mapProperty :: (Prop -> Prop) -> Property -> Property
 mapProperty f (Property g p) = Property g (f . p)
 
--- | Universal quantification over generated arguments
+-- | Universal quantification over generated arguments.
 forAll :: (IsArgs a, IsProp b) => Gen a -> (a -> b) -> Property
 forAll gen f =
   Property (Args <$> gen) $ \(Args as) ->
     prop (f (unsafeCoerce as))
 
--- | Expect a property to fail
+-- | Expect a property to fail.
 expectFailure :: (Testable prop) => prop -> Property
 expectFailure p =
   mapProperty
@@ -220,17 +220,17 @@ expectFailure p =
 
 -- ** Testable type class
 
--- | A class for testable properties
+-- | A class for testable properties.
 class Testable a where
   property :: a -> Property
 
--- | Properties are trivially testable
+-- | Properties are trivially testable.
 instance Testable Property where
   property p = p
 
 instance Testable Bool where
   property b = property (\() -> b)
 
--- | Testable properties with one argument
+-- | Testable properties with one argument.
 instance (IsArgs a, IsProp b) => Testable (a -> b) where
   property = forAll arbitrary

@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskellQuotes #-}
 
--- | Derive a 'Fragmentable' instance for a given data type
+-- | Derive a 'Fragmentable' instance for a given data type.
 module Test.Mutagen.TH.Fragmentable
   ( deriveFragmentable
   )
