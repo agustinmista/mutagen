@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-unused-imports #-}
-{-# OPTIONS_GHC -fplugin=Test.Mutagen.Tracer #-}
+{-# OPTIONS_GHC -fplugin=Test.Mutagen.Tracer.Plugin #-}
 
 -- TODO: remove @-Wno-unused-imports@ after fixing the plugin
 

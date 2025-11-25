@@ -2,11 +2,8 @@
 module Test.Mutagen.Tracer.Trace
   ( -- * Tracing
     TraceNode
-  , __trace__
+  , trace
   , Trace (..)
-  , addTraceNode
-  , resetTraceRef
-  , readTraceRef
   , withTrace
   , truncateTrace
   )
@@ -25,9 +22,9 @@ type TraceNode = Int
 -- | Trace the evaluation of a given 'TraceNode'.
 --
 -- This function is intended to be used by the GHC plugin to instrument code.
-__trace__ :: TraceNode -> a -> a
-__trace__ n expr = unsafePerformIO (addTraceNode n >> return expr)
-{-# INLINE __trace__ #-}
+trace :: TraceNode -> a -> a
+trace n expr = unsafePerformIO (addTraceNode n >> return expr)
+{-# INLINE trace #-}
 
 -- | A dynamic trace keeping track of executed trace nodes.
 newtype Trace = Trace {unTrace :: [TraceNode]}

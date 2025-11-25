@@ -18,7 +18,8 @@
 --  {-# OPTIONS_GHC -fplugin=Test.Mutagen.Tracer.Plugin #-}
 -- @
 --
--- * Per function, by adding the TRACE annotation pragma to the function:
+-- * Per function, by adding the TRACE annotation pragma to the function (in
+--  addition to enabling the plugin globally or per-module):
 --
 -- @
 --  {-# ANN myFunction TRACE #-}
@@ -43,6 +44,8 @@ import GHC.Hs
   , HsMatchContext (..)
   , HsModule (..)
   , HsParsedModule (..)
+  , ImportDecl (..)
+  , ImportDeclQualifiedStyle (..)
   , LHsExpr
   , Match (..)
   , gHsPar
@@ -53,7 +56,6 @@ import GHC.Hs
   )
 import qualified GHC.Hs as GHC
 import GHC.Plugins hiding ((<>))
-import GHC.Types.Name.Occurrence as Name
 import GHC.Types.SourceText (mkIntegralLit)
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Mutagen.Tracer.Metadata
@@ -111,13 +113,18 @@ instrumentModule _cli flags modAST = do
     -- Extract all the TRACE annotations from this module.
     traceAnnotations = extractAnn <$> listify (isAnn flags) modAST
 
-    -- Add an import to the module exporting __trace__, so it's always in scope
-    addTraceImport
+    -- Add an import to the module exporting @trace@, so it's always in scope
+    addTracerModuleImport
       :: HsModule GhcPs
       -> WriterT [NodeMetadata] Hsc (HsModule GhcPs)
-    addTraceImport m = do
+    addTracerModuleImport m = do
       mutagenLog $ "Adding module import for" <> showPpr flags tracerModuleName
-      let tracerModuleImport = noLocA (simpleImportDecl tracerModuleName)
+      let tracerModuleImport =
+            noLocA
+              ( (simpleImportDecl tracerModuleName)
+                  { ideclQualified = QualifiedPre
+                  }
+              )
       return m{hsmodImports = tracerModuleImport : hsmodImports m}
 
     -- Instrument and entire module
@@ -125,7 +132,7 @@ instrumentModule _cli flags modAST = do
       :: HsModule GhcPs
       -> WriterT [NodeMetadata] Hsc (HsModule GhcPs)
     instrumentEntireModule =
-      addTraceImport
+      addTracerModuleImport
         >=> instrumentEverywhere
 
     -- Instrument only specific bindings
@@ -134,7 +141,7 @@ instrumentModule _cli flags modAST = do
       -> HsModule GhcPs
       -> WriterT [NodeMetadata] Hsc (HsModule GhcPs)
     instrumentTopLevelBindings bindings =
-      addTraceImport
+      addTracerModuleImport
         >=> everywhereM (mkM (instrumentTopLevelBinding bindings))
 
     -- Instrument top-level functions having TRACE annotation pragmas
@@ -293,18 +300,14 @@ tracerModuleName :: ModuleName
 tracerModuleName = mkModuleName "Test.Mutagen.Tracer"
 
 -- | Name of the tracing function.
-tracerFunName :: RdrName
-tracerFunName = mkRdrName "__trace__"
+tracerFunName :: OccName
+tracerFunName = mkVarOcc "trace"
 
 -- | Name of the tracing annotation.
-tracerAnnName :: RdrName
-tracerAnnName = mkRdrName "TRACE"
+tracerAnnName :: OccName
+tracerAnnName = mkVarOcc "TRACE"
 
 -- ** AST Builders
-
--- | Make an unqualified 'RdrName' from a string.
-mkRdrName :: String -> RdrName
-mkRdrName str = mkUnqual Name.varName (mkFastString str)
 
 -- | Build a variable expression from a 'RdrName'.
 var :: RdrName -> LHsExpr GhcPs
@@ -335,6 +338,6 @@ numLit n = noLocA (HsLit GHC.noComments (HsInt noExtField (mkIntegralLit n)))
 -- | Wrap an expression with the tracer function.
 wrapTracer :: TraceNode -> LHsExpr GhcPs -> LHsExpr GhcPs
 wrapTracer node expr =
-  var tracerFunName
+  var (Qual tracerModuleName tracerFunName)
     `app` numLit node
     `app` paren expr
