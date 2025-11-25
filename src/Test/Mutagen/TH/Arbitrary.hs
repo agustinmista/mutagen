@@ -112,7 +112,7 @@ mkConGen targetType gen_ size_ (DCon _ _ cname cfields _) = do
       (dConFieldsTypes cfields)
   return (mkApplicativeDExp cname fieldGens)
 
--- | Create the appropriate generator for a constructor field based.
+-- | Create the appropriate generator for a constructor field based on its type.
 mkConFieldGen :: DType -> Name -> Name -> DType -> Q DExp
 mkConFieldGen targetType gen_ size_ fieldTy =
   dsExp =<< mkGen fieldTy
