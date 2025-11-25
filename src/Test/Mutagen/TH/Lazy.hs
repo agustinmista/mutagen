@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskellQuotes #-}
 
--- | Derive a 'Lazy' instance for a given data type
+-- | Derive a 'Lazy' instance for a given data type.
 module Test.Mutagen.TH.Lazy
   ( deriveLazy
   )

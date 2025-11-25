@@ -3,7 +3,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 
--- | Trace store implementations based on different trace types
+-- | Trace store implementations based on different trace types.
 module Test.Mutagen.Tracer.Store
   ( -- * Trace backends
     TraceBackend (..)
@@ -24,7 +24,7 @@ import Test.Mutagen.Tracer.Store.Types (TraceBackend (..))
 -- * Trace backends
 -------------------------------------------------------------------------------}
 
--- | Singleton version of 'TraceBackend'
+-- | Singleton version of 'TraceBackend'.
 data STraceBackend trace where
   SBitmap :: STraceBackend Bitmap
   STree :: STraceBackend Tree

@@ -1,4 +1,4 @@
--- | Type-indexed fragment store for collecting and sampling fragments from
+-- | Type-indexed fragment store for collecting and sampling fragments from.
 module Test.Mutagen.Fragment.Store
   ( -- * Type-indexed fragment store
     FragmentStore (..)
@@ -26,7 +26,7 @@ import Test.QuickCheck (Gen, shuffle)
 -- * Type-indexed fragment store
 -------------------------------------------------------------------------------}
 
--- | A collection of fragments indexed by their type representation
+-- | A collection of fragments indexed by their type representation.
 newtype FragmentStore = FragmentStore (Map TypeRep (Set Fragment))
 
 instance Semigroup FragmentStore where
@@ -36,18 +36,18 @@ instance Semigroup FragmentStore where
 instance Monoid FragmentStore where
   mempty = emptyFragmentStore
 
--- | An empty fragment store
+-- | An empty fragment store.
 emptyFragmentStore :: FragmentStore
 emptyFragmentStore = FragmentStore mempty
 
--- | Get the number of fragments stored for each type
+-- | Get the number of fragments stored for each type.
 fragmentStoreSize :: FragmentStore -> [(TypeRep, Int)]
 fragmentStoreSize (FragmentStore fs) =
   [ (tyRep, Set.size frags)
   | (tyRep, frags) <- Map.toList fs
   ]
 
--- | Store fragments from a value into the fragment store
+-- | Store fragments from a value into the fragment store.
 storeFragments
   :: (Fragmentable a)
   => FragmentTypeFilter
@@ -65,7 +65,7 @@ storeFragments typeFilter a (FragmentStore store) =
       | otherwise =
           store'
 
--- | Sample fragments of the same type as the given value from a fragment store
+-- | Sample fragments of the same type as the given value from a fragment store.
 sampleFragments
   :: (Typeable a)
   => a
@@ -78,7 +78,7 @@ sampleFragments a (FragmentStore store) = do
     Just frags ->
       mapMaybe (\(Fragment a') -> cast a') <$> shuffle (Set.toList frags)
 
--- | Print the contents of a fragment store for debugging purposes
+-- | Print the contents of a fragment store for debugging purposes.
 printFragmentStore :: FragmentStore -> IO ()
 printFragmentStore (FragmentStore fs) = do
   forM_ (Map.assocs fs) $ \(tyRep, frags) -> do
@@ -88,7 +88,7 @@ printFragmentStore (FragmentStore fs) = do
 
 -- ** Fragment type filters
 
--- | Fragment type allow and deny lists
+-- | Fragment type allow and deny lists.
 data FragmentTypeFilter = FragmentTypeFilter
   { allowList :: Set TypeRep
   -- ^ List of allowed fragment types
@@ -104,7 +104,7 @@ instance Semigroup FragmentTypeFilter where
 instance Monoid FragmentTypeFilter where
   mempty = FragmentTypeFilter mempty mempty
 
--- | Check if a type is allowed by the fragment type filter
+-- | Check if a type is allowed by the fragment type filter.
 isFragmentTypeAllowed :: FragmentTypeFilter -> TypeRep -> Bool
 isFragmentTypeAllowed (FragmentTypeFilter allow deny) tr =
   (tr `Set.member` allow)

@@ -3,7 +3,7 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE LambdaCase #-}
 
--- | Tracing metadata
+-- | Tracing metadata.
 --
 -- Mutagen saves some metadata about the instrumentation it performs at compile
 -- time, such as the number of tracing nodes generated, along with their
@@ -53,7 +53,7 @@ import System.IO.Unsafe (unsafePerformIO)
 -- * Trace metadata
 -------------------------------------------------------------------------------}
 
--- | Folder where to put the generated metadata
+-- | Folder where to put the generated metadata.
 --
 -- NOTE: can be overridden via the @MUTAGEN_TRACER_METADATA_DIR@ environment
 -- variable. Just remember to have it set up to the same value both at compile
@@ -65,7 +65,7 @@ tracerMetadataDir =
     $ lookupEnv "MUTAGEN_TRACER_METADATA_DIR"
 {-# NOINLINE tracerMetadataDir #-}
 
--- | Generated instrumentation metadata
+-- | Generated instrumentation metadata.
 newtype TracerMetadata = TracerMetadata
   { tracerModules :: Map FilePath ModuleMetadata
   }
@@ -75,17 +75,17 @@ instance ToJSON TracerMetadata
 
 instance FromJSON TracerMetadata
 
--- | Create tracer metadata for a single module
+-- | Create tracer metadata for a single module.
 mkSingleModuleTracerMetadata :: FilePath -> ModuleMetadata -> TracerMetadata
 mkSingleModuleTracerMetadata modName metadata =
   TracerMetadata (Map.singleton modName metadata)
 
--- | Return the number of tracing nodes for an entire instrumentation run
+-- | Return the number of tracing nodes for an entire instrumentation run.
 numTracingNodes :: TracerMetadata -> Int
 numTracingNodes metadata =
   length (concatMap moduleTracingNodes (tracerModules metadata))
 
--- | Save the generated instrumentation metadata
+-- | Save the generated instrumentation metadata.
 --
 -- NOTE: to avoid loading potentially invalid metadata when a source file gets
 -- deleted, this function recreates the target directory if it already exists.
@@ -97,7 +97,7 @@ saveTracerMetadata metadata = do
   forM_ (Map.toList (tracerModules metadata)) $ \(modName, modMetadata) ->
     encodeFile (tracerMetadataDir </> modName <.> "json") modMetadata
 
--- | Load the generated instrumentation metadata
+-- | Load the generated instrumentation metadata.
 loadTracerMetadata :: IO TracerMetadata
 loadTracerMetadata = do
   whenM (not <$> doesDirectoryExist tracerMetadataDir) $ do
@@ -113,7 +113,7 @@ loadTracerMetadata = do
   where
     isJSON file = takeExtension file == ".json"
 
--- | Exception thrown loading instantiation metadata
+-- | Exception thrown loading instantiation metadata.
 data MutagenTracerMetadataError
   = MutagenTracerMetadataError String
   | MutagenTracerMetadataIOError String
@@ -125,7 +125,7 @@ instance Exception MutagenTracerMetadataError
 -- * Module metadata
 -------------------------------------------------------------------------------}
 
--- | Tracer metadata of a single module
+-- | Tracer metadata of a single module.
 newtype ModuleMetadata = ModuleMetadata
   { moduleTracingNodes :: [NodeMetadata]
   }
@@ -139,7 +139,7 @@ instance FromJSON ModuleMetadata
 -- * Node metadata
 -------------------------------------------------------------------------------}
 
--- | Kind of tracing node
+-- | Kind of tracing node.
 data NodeType = GRHSNode | ThenNode | ElseNode
   deriving (Eq, Generic, Read, Show)
 
@@ -147,7 +147,7 @@ instance ToJSON NodeType
 
 instance FromJSON NodeType
 
--- | Node locations
+-- | Node locations.
 data NodeLocation = NodeLocation
   { filePath :: FilePath
   , startLine :: Int
@@ -161,7 +161,7 @@ instance ToJSON NodeLocation
 
 instance FromJSON NodeLocation
 
--- | Tracer metadata of a single tracing node
+-- | Tracer metadata of a single tracing node.
 data NodeMetadata = NodeMetadata
   { nodeId :: Int
   , nodeKind :: NodeType

@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Configuration options for Mutagen
+-- | Configuration options for Mutagen.
 module Test.Mutagen.Config
   ( -- * Configuration options
     Config (..)
@@ -34,7 +34,7 @@ import Test.Mutagen.Tracer.Store (TraceBackend (..))
 -- * Configuration options
 -------------------------------------------------------------------------------}
 
--- | Configuration options for Mutagen
+-- | Configuration options for Mutagen.
 data Config
   = Config
   { maxSuccess :: Int
@@ -118,7 +118,7 @@ data Config
   -- ^ Whether to use a terminal user interface (TUI) for displaying progress.
   }
 
--- | Default configuration options for Mutagen
+-- | Default configuration options for Mutagen.
 defaultConfig :: Config
 defaultConfig =
   Config
@@ -149,34 +149,34 @@ defaultConfig =
 -- * Helpers
 -------------------------------------------------------------------------------}
 
--- | Allow a type to be saved in the fragment store
+-- | Allow a type to be saved in the fragment store.
 allow :: forall a. (Typeable a) => FragmentTypeFilter
 allow = FragmentTypeFilter (Set.singleton (typeRep (Proxy @a))) mempty
 
--- | Like 'allow' but taking a t'Proxy' argument
+-- | Like 'allow' but taking a t'Proxy' argument.
 allow' :: forall a. (Typeable a) => Proxy a -> FragmentTypeFilter
 allow' _ = allow @a
 
--- | Deny a type from being saved in the fragment store
+-- | Deny a type from being saved in the fragment store.
 deny :: forall a. (Typeable a) => FragmentTypeFilter
 deny = FragmentTypeFilter mempty (Set.singleton (typeRep (Proxy @a)))
 
--- | Like 'deny' but taking a t'Proxy' argument
+-- | Like 'deny' but taking a t'Proxy' argument.
 deny' :: forall a. (Typeable a) => Proxy a -> FragmentTypeFilter
 deny' _ = deny @a
 
--- | Helper to create an example input of any supported argument type
+-- | Helper to create an example input of any supported argument type.
 example :: forall a. (IsArgs a) => a -> Args
 example = Args
 
--- | Debugging mode
+-- | Debugging mode.
 --
 -- Allows stopping the loop between test cases to inspect the internal state.
 data DebugMode
-  = -- | Run normally without stopping between tests
+  = -- | Run normally without stopping between tests.
     NoDebug
-  | -- | Stop after every passed test case
+  | -- | Stop after every passed test case.
     StopOnPassed
-  | -- | Stop after every test case (passed or discarded)
+  | -- | Stop after every test case (passed or discarded).
     AlwaysStop
   deriving (Eq, Show)

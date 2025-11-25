@@ -5,7 +5,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Mutagen's main testing loop
+-- | Mutagen's main testing loop.
 module Test.Mutagen.Test.Loop
   ( -- * Test loop
     loop
@@ -85,10 +85,10 @@ import Test.QuickCheck.Gen (unGen)
 -- * The main test loop
 -------------------------------------------------------------------------------}
 
--- | Constraint alias for monads that can run Mutagen tests
+-- | Constraint alias for monads that can run Mutagen tests.
 type MonadMutagen m = (MonadIO m, MonadTerminal m)
 
--- | The entry point to Mutagen's main testing loop
+-- | The entry point to Mutagen's main testing loop.
 --
 -- The state machine switches back and forth between 'loop' and 'newTest',
 -- until one of the terminal conditions is met.
@@ -140,7 +140,7 @@ loop st
   | otherwise =
       newTest st
 
--- | Select the next test case, run it, and process the result
+-- | Select the next test case, run it, and process the result.
 newTest :: (MonadMutagen m) => MutagenState -> m Report
 newTest st0 = do
   -- NOTE: using 'stN' to avoid bugs related to tildes in the helpers below
@@ -194,7 +194,7 @@ newTest st0 = do
       | otherwise =
           counterexample st args
 
--- | Report a found counterexample
+-- | Report a found counterexample.
 reportCounterexample
   :: (MonadMutagen m)
   => MutagenState
@@ -221,7 +221,7 @@ reportCounterexample st args result = do
 
 -- * Terminal states
 
--- | All tests passed successfully
+-- | All tests passed successfully.
 success :: (MonadMutagen m) => MutagenState -> m Report
 success st = do
   message "Done testing"
@@ -248,7 +248,7 @@ counterexample st args = do
       , failingArgs = args
       }
 
--- | Too many discarded tests
+-- | Too many discarded tests.
 giveUp :: (MonadMutagen m) => MutagenState -> String -> m Report
 giveUp st gaveUpReason = do
   message $ "Gave up: " <> gaveUpReason
@@ -259,7 +259,7 @@ giveUp st gaveUpReason = do
       , numDiscarded = stNumDiscarded st
       }
 
--- | Expected failure did not occur
+-- | Expected failure did not occur.
 noExpectedFailure :: (MonadMutagen m) => MutagenState -> m Report
 noExpectedFailure st = do
   message "Expected failure did not occur!"
@@ -285,7 +285,7 @@ pickNextTestCase st
   -- Only choice left is to generate a brand new test
   | otherwise = generateNewTest st
 
--- | Generate a brand new test case
+-- | Generate a brand new test case.
 generateNewTest
   :: (MonadMutagen m)
   => MutagenState
@@ -307,7 +307,7 @@ generateNewTest st = do
           & incNumGenerated
   return (args, Nothing, st')
 
--- | Mutate a test case from the passed queue
+-- | Mutate a test case from the passed queue.
 mutateFromPassed
   :: (MonadMutagen m)
   => MutagenState
@@ -334,7 +334,7 @@ mutateFromPassed st = do
               & incNumMutatedFromPassed
       return (args, Just batch, st')
 
--- | Mutate a test case from the discarded queue
+-- | Mutate a test case from the discarded queue.
 mutateFromDiscarded
   :: (MonadMutagen m)
   => MutagenState
@@ -361,7 +361,7 @@ mutateFromDiscarded st = do
               & incNumMutatedFromDiscarded
       return (args, Just batch, st')
 
--- | Run a test case and update the internal state accordingly
+-- | Run a test case and update the internal state accordingly.
 runTestCase
   :: (MonadMutagen m)
   => Args
@@ -521,7 +521,7 @@ runTestCase args parent st = do
 --   * The test result (passed, discarded, failed)
 --   * The trace in the program it traversed
 --   * The positions of the evaluated expressions of the input
---     (if lazy prunning is currently enabled)
+--     (if lazy pruning is currently enabled).
 execPropRunner :: MutagenState -> Args -> IO (Result, Trace, Maybe [Pos])
 execPropRunner st args
   | stUseLazyPrunning st = do
@@ -561,7 +561,7 @@ saveDiscardedTraceWithPrio st tr =
       let prio = depth
       return (new, prio)
 
--- | Run a computation using the passed trace store
+-- | Run a computation using the passed trace store.
 withPassedTraceStore
   :: MutagenState
   -> (forall trace. (TraceStoreImpl trace) => TraceStore trace -> r)
@@ -569,7 +569,7 @@ withPassedTraceStore
 withPassedTraceStore st k =
   case st of MutagenState{stPassedTraceStore = store} -> k store
 
--- | Run a computation using the discarded trace store
+-- | Run a computation using the discarded trace store.
 withDiscardedTraceStore
   :: MutagenState
   -> (forall trace. (TraceStoreImpl trace) => TraceStore trace -> r)

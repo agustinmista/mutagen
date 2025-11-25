@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Test drivers for Mutagen properties, mirrored from QuickCheck
+-- | Test drivers for Mutagen properties, mirrored from QuickCheck.
 module Test.Mutagen.Test.Driver
   ( -- * Test drivers
     mutagen
@@ -25,27 +25,27 @@ import Test.Mutagen.Test.Terminal (brickTUI, stdoutTUI, withTerminalT)
 -- * Test drivers
 -------------------------------------------------------------------------------}
 
--- | Run Mutagen with default configuration
+-- | Run Mutagen with default configuration.
 mutagen :: (Testable p) => p -> IO ()
 mutagen = mutagenWith defaultConfig
 
--- | Run Mutagen with default configuration in verbose mode
+-- | Run Mutagen with default configuration in verbose mode.
 mutagenVerbose :: (Testable p) => p -> IO ()
 mutagenVerbose = mutagenWith defaultConfig{chatty = True}
 
--- | Run Mutagen with default configuration in verbose mode, returning a report
+-- | Run Mutagen with default configuration in verbose mode, returning a report.
 mutagenVerboseReport :: (Testable p) => p -> IO Report
 mutagenVerboseReport = mutagenWithReport defaultConfig{chatty = True}
 
--- | Run Mutagen with default configuration, returning a report
+-- | Run Mutagen with default configuration, returning a report.
 mutagenReport :: (Testable p) => p -> IO Report
 mutagenReport = mutagenWithReport defaultConfig
 
--- | Run Mutagen with a custom configuration
+-- | Run Mutagen with a custom configuration.
 mutagenWith :: (Testable p) => Config -> p -> IO ()
 mutagenWith cfg p = void (mutagenWithReport cfg p)
 
--- | Run Mutagen with a custom configuration, returning a report
+-- | Run Mutagen with a custom configuration, returning a report.
 mutagenWithReport :: (Testable p) => Config -> p -> IO Report
 mutagenWithReport cfg p = do
   st <- initMutagenState cfg (property p)

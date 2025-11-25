@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Test case fragments and fragment stores
+-- | Test case fragments and fragment stores.
 module Test.Mutagen.Fragment
   ( -- * Fragments and Fragmentable class
     IsFragment
@@ -25,10 +25,10 @@ import Data.Word (Word16, Word32, Word64, Word8)
 -- * Fragments and Fragmentable class
 -------------------------------------------------------------------------------}
 
--- | Fragment type class constraint
+-- | Fragment type class constraint.
 type IsFragment a = (Typeable a, Ord a, Show a)
 
--- | A test case fragment hidden behind an existential
+-- | A test case fragment hidden behind an existential.
 data Fragment = forall a. (IsFragment a) => Fragment a
 
 instance Eq Fragment where
@@ -46,15 +46,15 @@ instance Ord Fragment where
 instance Show Fragment where
   show (Fragment a) = "Fragment(" <> show a <> ")"
 
--- | Turn an entire value into a singleton fragment set
+-- | Turn an entire value into a singleton fragment set.
 singleton :: (IsFragment a) => a -> Set Fragment
 singleton = Set.singleton . Fragment
 
 -- ** Fragmentable class
 
--- | Types that can be fragmented into smaller pieces
+-- | Types that can be fragmented into smaller pieces.
 class (IsFragment a) => Fragmentable a where
-  -- | Extract fragments from a value
+  -- | Extract fragments from a value.
   fragmentize :: a -> Set Fragment
   fragmentize = singleton
 

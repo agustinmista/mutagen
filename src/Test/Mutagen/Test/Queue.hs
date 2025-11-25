@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 
--- | Queues keeping a prioritized collection of test cases to mutate next
+-- | Queues keeping a prioritized collection of test cases to mutate next.
 module Test.Mutagen.Test.Queue
   ( -- * Mutation queues
     MutationQueue (..)
@@ -35,22 +35,22 @@ import Test.Mutagen.Tracer.Trace (Trace)
 -- * Mutation queues
 -------------------------------------------------------------------------------}
 
--- | Mutation queue priority
+-- | Mutation queue priority.
 type Priority = Int
 
--- | Mutation queues storing prioritized mutation candidates
+-- | Mutation queues storing prioritized mutation candidates.
 newtype MutationQueue
   = MutationQueue (MinPQueue Priority (MutationCandidate Args))
 
--- | Empty mutation queue
+-- | Empty mutation queue.
 emptyMutationQueue :: MutationQueue
 emptyMutationQueue = MutationQueue mempty
 
--- | Size of a mutation queue
+-- | Size of a mutation queue.
 mutationQueueSize :: MutationQueue -> Int
 mutationQueueSize (MutationQueue q) = PQueue.size q
 
--- | Enqueue a test case into a mutation queue with a given priority
+-- | Enqueue a test case into a mutation queue with a given priority.
 enqueueMutationCandidate
   :: Priority
   -> MutationCandidate Args
@@ -59,7 +59,7 @@ enqueueMutationCandidate
 enqueueMutationCandidate prio candidate (MutationQueue queue) =
   MutationQueue (PQueue.insert prio candidate queue)
 
--- | Dequeue the next test case from a mutation queue according to its priority
+-- | Dequeue the next test case from a mutation queue according to its priority.
 dequeueNextMutationCandidate
   :: MutationQueue
   -> (Priority, MutationCandidate Args, MutationQueue)
@@ -71,7 +71,7 @@ dequeueNextMutationCandidate (MutationQueue queue) =
 -- * Mutation candidates
 -------------------------------------------------------------------------------}
 
--- | Mutation candidates
+-- | Mutation candidates.
 --
 -- A mutation candidate is a previously executed test case that was found
 -- to be interesting according to its execution trace. Such test cases are
@@ -91,7 +91,7 @@ data MutationCandidate args
 -- * Mutation batches
 -------------------------------------------------------------------------------}
 
--- | Mutation batches
+-- | Mutation batches.
 --
 -- In contrast to mutation queues, which simultaneously store multiple test
 -- cases to be mutated, mutation batches store the state of mutating a single
@@ -120,7 +120,7 @@ data MutationBatch args
   -- ^ Maximum mutation depth remaining
   }
 
--- | Create a new mutation batch from scratch
+-- | Create a new mutation batch from scratch.
 newMutationBatch
   :: (Mutable a)
   => MutationOrder
@@ -159,7 +159,7 @@ newMutationBatch
       nextPositions =
         fromMaybe (mutationOrder (positions args)) evaluatedPositions
 
--- | Create a new mutation batch by inheriting from a parent one
+-- | Create a new mutation batch by inheriting from a parent one.
 --
 -- NOTE: this decreases the maximum mutation depth of the parent batch by one.
 newMutationBatchFromParent
@@ -243,7 +243,7 @@ createOrInheritMutationBatch
           isPassed
           args
 
--- | Compute the next mutation from a mutation batch
+-- | Compute the next mutation from a mutation batch.
 nextMutation
   :: (Mutable a)
   => FragmentStore

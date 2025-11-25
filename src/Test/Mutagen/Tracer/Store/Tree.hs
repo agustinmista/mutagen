@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
--- | Trace-based tree trace store
+-- | Trace-based tree trace store.
 module Test.Mutagen.Tracer.Store.Tree
   ( -- * Tree trace store
     TraceStore
@@ -51,14 +51,14 @@ instance TraceStoreImpl Tree where
 -- * Trace trees implemented using "rose maps"
 -------------------------------------------------------------------------------}
 
--- | Recursive partial maps indexed by trace nodes
+-- | Recursive partial maps indexed by trace nodes.
 newtype TraceTree = TraceTree (Map TraceNode TraceTree)
 
--- | Create an empty trace tree
+-- | Create an empty trace tree.
 emptyTraceTree :: TraceTree
 emptyTraceTree = TraceTree mempty
 
--- | Insert a trace into a trace tree
+-- | Insert a trace into a trace tree.
 --
 -- Returns the updated tree, the number of new nodes added, and the depth at
 -- which the input trace was inserted into the global trace tree.
@@ -80,12 +80,12 @@ insertTrace (Trace entries) = go 0 entries
       where
         (tlog', n) = chain es
 
--- | Convert a trace tree to a forest for pretty printing
+-- | Convert a trace tree to a forest for pretty printing.
 traceTreetoForest :: TraceTree -> Tree.Forest TraceNode
 traceTreetoForest (TraceTree tt) =
   Map.elems (Map.mapWithKey (\node -> Tree.Node node . traceTreetoForest) tt)
 
--- | Pretty print a trace tree
+-- | Pretty print a trace tree.
 drawTraceTree :: TraceTree -> String
 drawTraceTree tt = drawVerticalForest (fmap show <$> toForest tt)
   where

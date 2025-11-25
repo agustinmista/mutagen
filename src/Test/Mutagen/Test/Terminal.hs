@@ -5,7 +5,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 
--- | Terminal UI
+-- | Terminal UI.
 module Test.Mutagen.Test.Terminal
   ( -- * Generic TUI interface
     TUI
@@ -58,7 +58,7 @@ import Text.Pretty.Simple
 -- * Generic terminal interface
 -------------------------------------------------------------------------------}
 
--- | Generic terminal UI interface
+-- | Generic terminal UI interface.
 data TUI m = TUI
   { tuiMessage :: String -> m ()
   -- ^ Print a message to the terminal
@@ -66,15 +66,15 @@ data TUI m = TUI
   -- ^ Pretty-print a value to the terminal
   }
 
--- | t'TerminalT' monad transformer
+-- | t'TerminalT' monad transformer.
 newtype TerminalT m a = TerminalT {runTerminalT :: ReaderT (TUI m) m a}
   deriving (Applicative, Functor, Monad, MonadIO)
 
--- | Run a t'TerminalT' action with the given t'TUI'
+-- | Run a t'TerminalT' action with the given t'TUI'.
 withTerminalT :: TUI m -> TerminalT m a -> m a
 withTerminalT tui = flip runReaderT tui . runTerminalT
 
--- | Monad class for terminal interactions
+-- | Monad class for terminal interactions.
 class (Monad m) => MonadTerminal m where
   message :: String -> m ()
   pretty :: forall a. (Show a) => a -> m ()
@@ -95,7 +95,7 @@ instance (MonadIO m, MonadTerminal m) => MonadTerminal (StateT s m) where
 -- * Basic stdout terminal interface
 -------------------------------------------------------------------------------}
 
--- | A basic TUI that prints to stdout
+-- | A basic TUI that prints to stdout.
 stdoutTUI :: IO (TUI IO)
 stdoutTUI =
   return
@@ -108,7 +108,7 @@ stdoutTUI =
 -- * Brick-based TUI implementation
 -------------------------------------------------------------------------------}
 
--- | A TUI implementation using the Brick library
+-- | A TUI implementation using the Brick library.
 brickTUI :: IO (TUI IO)
 brickTUI = do
   startTUI
@@ -118,17 +118,17 @@ brickTUI = do
       , tuiPretty = const (return ())
       }
 
--- | Names for Brick widgets
+-- | Names for Brick widgets.
 data Name = TopLog | BottomLog
   deriving (Eq, Ord, Show)
 
--- | State of the TUI
+-- | State of the TUI.
 data TUIState = TUIState
   { tuiTopLog :: List Name String
   , tuiBottomLog :: List Name String
   }
 
--- | Start the Brick-based TUI
+-- | Start the Brick-based TUI.
 startTUI :: IO ()
 startTUI =
   void $ Brick.defaultMain theApp initialState
@@ -179,7 +179,7 @@ startTUI =
 -- * Derived printers
 -------------------------------------------------------------------------------}
 
--- | Print the status of the current mutation batch
+-- | Print the status of the current mutation batch.
 printBatchStatus :: (MonadTerminal m) => MutationBatch Args -> m ()
 printBatchStatus batch = do
   message $ "Current mutation batch:"
@@ -199,7 +199,7 @@ printBatchStatus batch = do
       forM_ ps $ \pos ->
         pretty pos
 
--- | Print detailed statistics about the testing session
+-- | Print detailed statistics about the testing session.
 printGlobalStats :: (MonadIO m, MonadTerminal m) => MutagenState -> m ()
 printGlobalStats st = do
   message
@@ -267,7 +267,7 @@ printGlobalStats st = do
   message
     "=================="
 
--- | Print short statistics about the testing session
+-- | Print short statistics about the testing session.
 printShortStats :: (MonadTerminal m) => MutagenState -> m ()
 printShortStats st = do
   let total = stNumPassed st + stNumDiscarded st + stNumFailed st
@@ -292,7 +292,7 @@ printShortStats st = do
 -- * Helpers
 -------------------------------------------------------------------------------}
 
--- | Pretty-print a value to stdout
+-- | Pretty-print a value to stdout.
 prettyPrint :: (MonadIO m, Show a) => a -> m ()
 prettyPrint =
   pPrintOpt
@@ -304,7 +304,7 @@ prettyPrint =
       , outputOptionsCompactParens = False
       }
 
--- | Pretty-print a value to stdout in compact form
+-- | Pretty-print a value to stdout in compact form.
 compactPrint :: (MonadIO m, Show a) => a -> m ()
 compactPrint =
   pPrintOpt
