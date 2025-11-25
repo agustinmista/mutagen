@@ -171,7 +171,7 @@ newMutationBatchFromParent
   -> MutationBatch a
 newMutationBatchFromParent
   batch
-  evaluatedPositions
+  evaluatedPos
   testPassed
   args =
     batch
@@ -186,7 +186,7 @@ newMutationBatchFromParent
       -- Determine next positions to mutate based on whether we receive the
       -- concrete execution trace of the original
       nextPositions =
-        fromMaybe (mbMutationOrder batch (positions args)) evaluatedPositions
+        fromMaybe (mbMutationOrder batch (positions args)) evaluatedPos
 
 -- | Create or inherit mutation batch for a test case.
 --
@@ -221,14 +221,14 @@ createOrInheritMutationBatch
   maxMutationDepth
   args
   parentBatch
-  pos
+  evaluatedPos
   isPassed =
     case parentBatch of
       -- The test case was mutated from an existing one
       Just mb ->
         newMutationBatchFromParent
           mb
-          pos
+          evaluatedPos
           isPassed
           args
       -- The test case was freshly generated
@@ -239,7 +239,7 @@ createOrInheritMutationBatch
           maxGenSize
           randomFragments
           maxMutationDepth
-          pos
+          evaluatedPos
           isPassed
           args
 

@@ -44,7 +44,11 @@ where
 import Data.List (elemIndex)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import System.FilePath ((<.>))
-import Test.Mutagen.Config (Config (..), DebugMode (..))
+import Test.Mutagen.Config
+  ( Config (..)
+  , DebugMode (..)
+  , LazyPruningMode (..)
+  )
 import Test.Mutagen.Fragment.Store
   ( FragmentStore
   , FragmentTypeFilter
@@ -89,8 +93,8 @@ data MutagenState
   -- ^ Mirrored from 'Config.maxMutationDepth'
   , stAutoResetAfter :: !(Maybe Int)
   -- ^ Mirrored from 'Config.autoResetAfter'
-  , stUseLazyPrunning :: !Bool
-  -- ^ Mirrored from 'Config.useLazyPrunning'
+  , stLazyPruning :: !(LazyPruningMode)
+  -- ^ Mirrored from 'Config.lazyPruning'
   , stMutationOrder :: !MutationOrder
   -- ^ Mirrored from 'Config.mutationOrder'
   , stRandomFragments :: !Int
@@ -194,7 +198,7 @@ initMutagenState cfg (Property gen runner) = do
         , stRandomFragments = randomFragments cfg
         , stMaxMutationDepth = maybe (maxGenSize cfg) id (maxMutationDepth cfg)
         , stAutoResetAfter = autoResetAfter cfg
-        , stUseLazyPrunning = useLazyPrunning cfg
+        , stLazyPruning = lazyPruning cfg
         , stMutationOrder = mutationOrder cfg
         , stUseFragments = useFragments cfg
         , stFilterFragments = filterFragments cfg

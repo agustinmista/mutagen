@@ -16,7 +16,11 @@ import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Function ((&))
 import System.Random (split)
-import Test.Mutagen.Config (DebugMode (..))
+import Test.Mutagen.Config
+  ( DebugMode (..)
+  , EvaluationOrder (..)
+  , LazyPruningMode (..)
+  )
 import Test.Mutagen.Fragment.Store (storeFragments)
 import Test.Mutagen.Lazy (withLazyIO)
 import Test.Mutagen.Mutation (Pos)
@@ -376,8 +380,6 @@ runTestCase args parent st = do
     message "Running test case..."
   -- Run the test case
   (result, trace, evaluatedPos) <- liftIO $ execPropRunner st args
-  -- Truncate the trace if necessary
-  let trace' = maybe trace (flip truncateTrace trace) (stMaxTraceLength st)
   when (stChatty st) $ do
     case evaluatedPos of
       Just pos -> do
@@ -387,7 +389,7 @@ runTestCase args parent st = do
         return () -- lazy prunning is disabled
         -- Print the trace of the mutated test case
     message "Test case trace:"
-    pretty (unTrace trace')
+    pretty (unTrace trace)
   -- Extract property modifiers
   let addPropertyModifiers =
         setExpect (resultExpect result)
@@ -407,7 +409,7 @@ runTestCase args parent st = do
       when (stChatty st) $ do
         message "Test result: PASSED"
       -- Save the trace in the corresponding trace store
-      (new, prio) <- liftIO (savePassedTraceWithPrio st trace')
+      (new, prio) <- liftIO (savePassedTraceWithPrio st trace)
       -- Evaluate whether the test case was interesting or not depending on
       -- whether it added new trace nodes or not
       let interesting = new > 0
@@ -442,7 +444,7 @@ runTestCase args parent st = do
       when (stChatty st) $ do
         message "Test result: DISCARDED"
       -- Save the trace in the corresponding trace log
-      (new, prio) <- liftIO (saveDiscardedTraceWithPrio st trace')
+      (new, prio) <- liftIO (saveDiscardedTraceWithPrio st trace)
       -- Evaluate whether the test case was interesting or not
       --
       -- NOTE: in this case, we only consider discarded test cases interesting
@@ -519,19 +521,33 @@ runTestCase args parent st = do
 
 -- | Execute a test and capture:
 --   * The test result (passed, discarded, failed)
---   * The trace in the program it traversed
---   * The positions of the evaluated expressions of the input
---     (if lazy pruning is currently enabled).
+--   * The (possibly truncated) execution trace in the program it traversed
+--   * The positions of the evaluated subexpressions of the input, in the order
+--     that they need to be mutated (only when lazy pruning is enabled).
 execPropRunner :: MutagenState -> Args -> IO (Result, Trace, Maybe [Pos])
 execPropRunner st args
-  | stUseLazyPrunning st = do
-      (evaluated, (test, trace)) <- withLazyIO (withTrace . runProp) args
-      return (test, trace, Just evaluated)
+  | LazyPruning order <- stLazyPruning st = do
+      (evaluated, (result, trace)) <- withLazyIO (withTrace . runProp) args
+      return
+        ( result
+        , truncateTraceIfNeeded trace
+        , Just (withMutationOrder order evaluated)
+        )
   | otherwise = do
-      (test, trace) <- withTrace (runProp args)
-      return (test, trace, Nothing)
+      (result, trace) <- withTrace (runProp args)
+      return
+        ( result
+        , truncateTraceIfNeeded trace
+        , Nothing
+        )
   where
     runProp = unProp . protectProp . stPropRunner st
+    withMutationOrder order =
+      case order of
+        Forward -> id
+        Backward -> reverse
+    truncateTraceIfNeeded trace =
+      maybe trace (flip truncateTrace trace) (stMaxTraceLength st)
 
 -- | Save a discarded trace and return the number of new nodes added and its
 -- the priority associated to its corresponding test case.

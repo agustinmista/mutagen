@@ -15,6 +15,8 @@ module Test.Mutagen.Config
   , deny
   , deny'
   , example
+  , LazyPruningMode (..)
+  , EvaluationOrder (..)
   , DebugMode (..)
 
     -- * Re-exports
@@ -62,11 +64,11 @@ data Config
   -- certain number of tests. If not set to `Nothing`, this will duplicate the
   -- current limit on every reset. Additionally, it also duplicates the
   -- `randomMutations` parameter.
-  , useLazyPrunning :: Bool
-  -- ^ Use lazy prunning to avoid mutating unevaluated subexpressions. The
+  , lazyPruning :: LazyPruningMode
+  -- ^ Use lazy pruning to avoid mutating unevaluated subexpressions. The
   -- target mutable subexpressions are ordered by last evaluated first.
   , mutationOrder :: MutationOrder
-  -- ^ If `useLazyPrunning` is set to `False`, *every* subexpression of an
+  -- ^ If `lazyPruning` is set to `False`, *every* subexpression of an
   -- interesting test case is mutated regardless whether it was evaluated or
   -- not. These subexpressions are ordered using a generic tree traversal order
   -- (level order by default). The provided options are:
@@ -130,7 +132,7 @@ defaultConfig =
     , randomMutations = 1
     , maxMutationDepth = Nothing
     , autoResetAfter = Just 1000
-    , useLazyPrunning = False
+    , lazyPruning = LazyPruning Forward
     , mutationOrder = levelorder
     , useFragments = False
     , randomFragments = 10
@@ -168,6 +170,28 @@ deny' _ = deny @a
 -- | Helper to create an example input of any supported argument type.
 example :: forall a. (IsArgs a) => a -> Args
 example = Args
+
+-- | Lazy pruning mode.
+--
+-- Used to dictate whether lazy pruning is used or not, and in which order
+-- subexpressions are mutated.
+data LazyPruningMode
+  = -- | Do not use lazy pruning; mutate all subexpressions.
+    NoLazyPruning
+  | -- | Use lazy pruning; mutate only evaluated subexpressions, following the
+    -- order in which they were evaluated.
+    LazyPruning EvaluationOrder
+  deriving (Eq, Show)
+
+-- | Evaluation order for lazy pruning.
+--
+-- Used to dictate how to order the evaluated subexpressions to be mutated.
+data EvaluationOrder
+  = -- | Mutate the least recently evaluated subexpressions first.
+    Forward
+  | -- | Mutate the most recently evaluated subexpressions first.
+    Backward
+  deriving (Eq, Show)
 
 -- | Debugging mode.
 --

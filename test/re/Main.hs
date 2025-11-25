@@ -18,6 +18,8 @@ import System.Exit
 import Test.Mutagen
   ( Config (..)
   , DebugMode (..)
+  , EvaluationOrder (..)
+  , LazyPruningMode (..)
   , Prop
   , allow
   , defaultConfig
@@ -53,9 +55,10 @@ config =
     , maxGenSize =
         -- Max generation size
         5
-    , useLazyPrunning =
-        -- Prune mutations affecting unevaluated subexpressions
-        True
+    , lazyPruning =
+        -- Prune mutations affecting unevaluated subexpressions, following the
+        -- same evaluation order of the property over the original test case
+        LazyPruning Forward
     , useFragments =
         -- Keep a store of test case fragments to be reused
         True
