@@ -74,13 +74,7 @@ import Test.Mutagen.Test.State
   , updateFragmentStore
   , updatePassedQueue
   )
-import Test.Mutagen.Test.Terminal
-  ( MonadTerminal (..)
-  , pretty
-  , printBatchStatus
-  , printGlobalStats
-  , printShortStats
-  )
+import Test.Mutagen.Test.Terminal (MonadTerminal (..))
 import Test.Mutagen.Tracer.Store (STraceBackend (..), TraceStoreImpl (..))
 import Test.Mutagen.Tracer.Trace (Trace (..), truncateTrace, withTrace)
 import Test.QuickCheck.Gen (unGen)
@@ -147,6 +141,7 @@ loop st
 -- | Select the next test case, run it, and process the result.
 newTest :: (MonadMutagen m) => MutagenState -> m Report
 newTest st0 = do
+  cleanLog
   -- NOTE: using 'stN' to avoid bugs related to tildes in the helpers below
   -- 1. pick a new test case
   (args, parent, st1) <- pickNextTestCase st0
@@ -159,14 +154,14 @@ newTest st0 = do
   where
     -- What to do with a successful or discarded test case
     onSuccessOrDiscarded st _args result = do
-      printStats st
+      printStats (stChatty st) st
       stopOnDebugMode (stDebug st) result
       loop st
     -- What to do with a failed test case
     onFailed st args result = do
       let st' = st & incNumFailed
       reportCounterexample st' args result
-      printStats st'
+      printStats (stChatty st') st'
       stopOnDebugMode (stDebug st') result
       stopOrKeepGoing st' args
     -- Stop execution if in debug mode
@@ -176,12 +171,7 @@ newTest st0 = do
         AlwaysStop -> awaitForUserInput
         _ -> return ()
     awaitForUserInput = do
-      message "Press enter to continue ..."
-      void (liftIO getLine)
-    -- Print global statistics depending on the verbosity
-    printStats st
-      | stChatty st = printGlobalStats st
-      | otherwise = printShortStats st
+      void $ readLine "Press enter to continue ..."
     -- Stop or continue after a failed test case
     stopOrKeepGoing st args
       -- Check if we should keep going
@@ -329,7 +319,7 @@ mutateFromPassed st = do
         pretty (mcArgs candidate)
         message "Mutated test case:"
         pretty args
-        printBatchStatus batch
+        printBatch batch
       let st' =
             st
               & setPassedQueue
@@ -356,7 +346,7 @@ mutateFromDiscarded st = do
         pretty (mcArgs candidate)
         message "Mutated test case:"
         pretty args
-        printBatchStatus batch
+        printBatch batch
       let st' =
             st
               & setDiscardedQueue

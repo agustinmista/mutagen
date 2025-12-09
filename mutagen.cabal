@@ -86,6 +86,8 @@ library
     , random
     , syb
     , template-haskell
+    , text
+    , text-zipper
     , th-desugar
     , time
     , vector
